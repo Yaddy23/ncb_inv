@@ -418,11 +418,17 @@ const exportBooks = async (req, res) => {
   }
 };
 
+// Excel reserves the sheet name "History" (revision history) - exceljs throws
+// on it and Excel itself refuses to open such a workbook. Treat any casing as
+// reserved so the file always opens.
+const RESERVED_SHEET_NAME = /^history$/i;
+
 // Helper function to sanitize Excel sheet names
 const sanitizeSheetName = (name, usedNames = new Set(), lowerUsedNames = new Set()) => {
-  // Excel sheet names: max 31 chars, no [ ] * ? / \ :
+  // Excel sheet names: max 31 chars, no [ ] * ? / \ : and no leading/trailing apostrophes
   let sanitized = name
     .replace(/[\[\]*?\/\\:]/g, '_')
+    .replace(/^'+|'+$/g, '')
     .substring(0, 31)
     || 'Sheet';
 
@@ -430,7 +436,7 @@ const sanitizeSheetName = (name, usedNames = new Set(), lowerUsedNames = new Set
   // Use case-insensitive comparison since Excel sheet names are case-insensitive
   let finalName = sanitized;
   let counter = 1;
-  while (lowerUsedNames.has(finalName.toLowerCase())) {
+  while (lowerUsedNames.has(finalName.toLowerCase()) || RESERVED_SHEET_NAME.test(finalName)) {
     counter++;
     const suffix = `_${counter}`;
     // Ensure we don't exceed 31 chars
