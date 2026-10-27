@@ -11,6 +11,11 @@ import { enqueueScan, getPendingItems, drainQueue, registerBackgroundSync } from
 import { lookupLocal, adjustLocalStock, refreshCatalog } from '../lib/bookCatalog';
 import { ExcelImport, useExcelImport } from '../components/import';
 
+// The camera re-fires the same barcode every ~2s while it stays in view, so
+// a missing book would spam the "not found" toast. Re-notify the same ISBN
+// only after this long.
+const NOT_FOUND_TOAST_REPEAT_MS = 10000;
+
 // Row rules for the bulk stock-movement import: ISBN required, QTY optional
 // (defaults to 1, minimum 1). Passed to useExcelImport.
 const validateStockRows = (data) => {
@@ -93,6 +98,7 @@ const Scan = ({ user }) => {
   const scanQueueRef = useRef(scanQueue); // Latest queue, so stock checks see scans not yet flushed
   scanQueueRef.current = scanQueue;
   const flushQueueRef = useRef(null); // Latest flushQueue, for the stable drain-handler registration
+  const notFoundToastRef = useRef({ isbn: null, at: 0 }); // Last "not found" toast, for the per-ISBN repeat delay
 
   // Mobile detection for responsive UI (resize-reactive; see hooks/useMediaQuery)
   const isMobile = useIsMobile();
@@ -230,7 +236,16 @@ const Scan = ({ user }) => {
       }
     } catch (err) {
       const msg = err.response?.data?.message || err.message;
-      toast.error(`⛔ ${msg}`);
+
+      // Don't re-toast the same failed ISBN while the camera keeps firing it -
+      // the first notification is immediate, repeats wait out the delay
+      const now = Date.now();
+      const last = notFoundToastRef.current;
+      if (last.isbn !== code || now - last.at >= NOT_FOUND_TOAST_REPEAT_MS) {
+        toast.error(`⛔ ${msg}`);
+        notFoundToastRef.current = { isbn: code, at: now };
+      }
+
       setScanResult({
         type: 'error',
         message: msg,
