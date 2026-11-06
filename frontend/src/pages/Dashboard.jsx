@@ -212,6 +212,54 @@ const Dashboard = ({ user }) => {
         <p className="mt-2 text-gray-600 dark:text-slate-400">Welcome back, {user.username}! Here's your inventory overview.</p>
       </div>
 
+      {/* Quick Actions - Horizontal layout, responsive */}
+      <div className="mt-4 sm:mt-6 mb-6 sm:mb-8">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-slate-100 mb-3 sm:mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <button
+            onClick={() => navigate('/scan')}
+            className="bg-white dark:bg-slate-900 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between border border-gray-100 dark:border-slate-800 touch-manipulation min-h-[48px] text-left"
+          >
+            <div className="flex-1 min-w-0 mb-3 sm:mb-0">
+              <p className="text-sm sm:text-base font-medium text-gray-700 dark:text-slate-300 truncate">Scan Books</p>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-0.5">Use barcode scanner or camera</p>
+            </div>
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 dark:bg-blue-500/15 rounded-xl flex items-center justify-center flex-shrink-0 ml-3 sm:ml-4">
+              <ScanBarcode className="w-5 h-5 sm:w-6 sm:h-6 text-primary dark:text-blue-400" />
+            </div>
+          </button>
+
+          <button
+            onClick={() => navigate('/books')}
+            className="bg-white dark:bg-slate-900 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between border border-gray-100 dark:border-slate-800 touch-manipulation min-h-[48px] text-left"
+          >
+            <div className="flex-1 min-w-0 mb-3 sm:mb-0">
+              <p className="text-sm sm:text-base font-medium text-gray-700 dark:text-slate-300 truncate">Manage Books</p>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-0.5">View and edit book catalog</p>
+            </div>
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 dark:bg-blue-500/15 rounded-xl flex items-center justify-center flex-shrink-0 ml-3 sm:ml-4">
+              <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-primary dark:text-blue-400" />
+            </div>
+          </button>
+
+          {user.role === 'Admin' && (
+            <button
+              onClick={() => navigate('/import-export')}
+              className="bg-white dark:bg-slate-900 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between border border-gray-100 dark:border-slate-800 touch-manipulation min-h-[48px] text-left"
+            >
+              <div className="flex-1 min-w-0 mb-3 sm:mb-0">
+                <p className="text-sm sm:text-base font-medium text-gray-700 dark:text-slate-300 truncate">Import/Export</p>
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-0.5">Bulk operations</p>
+              </div>
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 dark:bg-blue-500/15 rounded-xl flex items-center justify-center flex-shrink-0 ml-3 sm:ml-4">
+                <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-primary dark:text-blue-400" />
+              </div>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Total Books */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-5 sm:p-6 border border-gray-100 dark:border-slate-800">
@@ -319,85 +367,39 @@ const Dashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="mt-6 sm:mt-8">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-slate-100 mb-3 sm:mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 gap-3 sm:gap-4">
-          <button
-            onClick={() => navigate('/scan')}
-            className="bg-white dark:bg-slate-900 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-4 sm:p-5 flex items-center justify-between border border-gray-100 dark:border-slate-800 touch-manipulation min-h-[48px]"
-          >
-            <div className="flex-1 min-w-0">
-              <p className="text-sm sm:text-base font-medium text-gray-700 dark:text-slate-300 truncate">Scan Books</p>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-0.5">Use barcode scanner or camera</p>
-            </div>
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 dark:bg-blue-500/15 rounded-xl flex items-center justify-center flex-shrink-0 ml-3">
-              <ScanBarcode className="w-5 h-5 sm:w-6 sm:h-6 text-primary dark:text-blue-400" />
-            </div>
-          </button>
-
-          <button
-            onClick={() => navigate('/books')}
-            className="bg-white dark:bg-slate-900 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-4 sm:p-5 flex items-center justify-between border border-gray-100 dark:border-slate-800 touch-manipulation min-h-[48px]"
-          >
-            <div className="flex-1 min-w-0">
-              <p className="text-sm sm:text-base font-medium text-gray-700 dark:text-slate-300 truncate">Manage Books</p>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-0.5">View and edit book catalog</p>
-            </div>
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 dark:bg-blue-500/15 rounded-xl flex items-center justify-center flex-shrink-0 ml-3">
-              <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-primary dark:text-blue-400" />
-            </div>
-          </button>
-
-          {user.role === 'Admin' && (
-            <button
-              onClick={() => navigate('/import-export')}
-              className="bg-white dark:bg-slate-900 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-4 sm:p-5 flex items-center justify-between border border-gray-100 dark:border-slate-800 touch-manipulation min-h-[48px]"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-sm sm:text-base font-medium text-gray-700 dark:text-slate-300 truncate">Import/Export</p>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-0.5">Bulk operations</p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 dark:bg-blue-500/15 rounded-xl flex items-center justify-center flex-shrink-0 ml-3">
-                <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-primary dark:text-blue-400" />
-              </div>
-            </button>
-          )}
-        </div>
-      </div>
-          {/* Out of Stock Modal */}
-          <Modal open={showOutOfStockModal} onClose={() => setShowOutOfStockModal(false)} title="Out of Stock Books" size="sm">
-            {outOfStock.books.length > 0 ? (
-              <>
-                <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">{outOfStock.count} out of stock title{outOfStock.count === 1 ? '' : 's'}</p>
-                <ul className="divide-y divide-gray-100 dark:divide-slate-800">
-                  {outOfStock.books.map((book) => (
-                    <li key={book.ISBN} className="flex items-start space-x-3 py-2">
-                      <div className="flex-shrink-0">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: 'var(--accent-warn-bg)' }}>
-                          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-gray-900 dark:text-slate-100 truncate">
-                          <span className="font-medium">{book.TITLE}</span>
-                          <span className="ml-2 text-gray-500 dark:text-slate-400">ISBN: {book.ISBN}</span>
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                {outOfStock.count > outOfStock.books.length && (
-                  <p className="text-sm text-gray-500 dark:text-slate-400 pt-2 border-t border-gray-100 dark:border-slate-800 mt-2">
-                    …and {outOfStock.count - outOfStock.books.length} more. Use the Books page with the "Out of stock" filter to see them all.
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-slate-400">No out of stock books</p>
+      {/* Out of Stock Modal */}
+      <Modal open={showOutOfStockModal} onClose={() => setShowOutOfStockModal(false)} title="Out of Stock Books" size="sm">
+        {outOfStock.books.length > 0 ? (
+          <>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">{outOfStock.count} out of stock title{outOfStock.count === 1 ? '' : 's'}</p>
+            <ul className="divide-y divide-gray-100 dark:divide-slate-800">
+              {outOfStock.books.map((book) => (
+                <li key={book.ISBN} className="flex items-start space-x-3 py-2">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: 'var(--accent-warn-bg)' }}>
+                      <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-gray-900 dark:text-slate-100 truncate">
+                      <span className="font-medium">{book.TITLE}</span>
+                      <span className="ml-2 text-gray-500 dark:text-slate-400">ISBN: {book.ISBN}</span>
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {outOfStock.count > outOfStock.books.length && (
+              <p className="text-sm text-gray-500 dark:text-slate-400 pt-2 border-t border-gray-100 dark:border-slate-800 mt-2">
+                …and {outOfStock.count - outOfStock.books.length} more. Use the Books page with the "Out of stock" filter to see them all.
+              </p>
             )}
-          </Modal>
+          </>
+        ) : (
+          <p className="text-sm text-gray-500 dark:text-slate-400">No out of stock books</p>
+        )}
+      </Modal>
     </div>
   );
 };

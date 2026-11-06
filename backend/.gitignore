@@ -61,3 +61,6 @@ temp/
 
 # Fly.io
 fly.toml
+
+# Playwright-MCP Reports
+.playwright-mcp
