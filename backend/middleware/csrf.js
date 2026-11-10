@@ -29,10 +29,11 @@ const csrfProtection = (req, res, next) => {
 const ensureCsrfCookie = (req, res, next) => {
   if (!req.cookies?.csrfToken) {
     const token = generateCsrfToken();
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('csrfToken', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 24 * 60 * 60 * 1000,
       path: '/'
     });
