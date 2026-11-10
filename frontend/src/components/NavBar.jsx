@@ -124,7 +124,7 @@ const NavBar = ({ user, onLogout, collapsed, onToggle, isMobile, isOpen, onClose
               </div>
               {!collapsed && (
                 <div className="flex-1 min-w-0 transition-opacity duration-200">
-                  <h2 className="font-semibold text-primary dark:text-blue-400 truncate">BookInventory</h2>
+                  <h2 className="font-semibold text-primary dark:text-blue-400 truncate">NCB Inventory</h2>
                   <p className="text-xs text-gray-500 dark:text-slate-400 truncate">Management System</p>
                 </div>
               )}
@@ -149,7 +149,7 @@ const NavBar = ({ user, onLogout, collapsed, onToggle, isMobile, isOpen, onClose
               <Menu className="w-5 h-5 text-primary dark:text-blue-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="font-semibold text-primary dark:text-blue-400">BookInventory</h2>
+              <h2 className="font-semibold text-primary dark:text-blue-400">NCB Inventory</h2>
               <p className="text-xs text-gray-500 dark:text-slate-400">Management System</p>
             </div>
             <div className="flex items-center space-x-1">
