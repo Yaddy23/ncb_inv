@@ -2,17 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useToast } from '../components/Toast';
-import { Shield, QrCode, Smartphone, ArrowLeft, CheckCircle, AlertTriangle, RefreshCw, Eye, EyeOff, Copy } from 'lucide-react';
+import { Shield, QrCode, Smartphone, ArrowLeft, CheckCircle, AlertTriangle, RefreshCw, Eye, EyeOff, Copy, Trash2, Loader2 } from 'lucide-react';
 
 const MfaSetup = ({ onBack }) => {
-  const [step, setStep] = useState('setup'); // setup, verify, complete
+  const [step, setStep] = useState('setup'); // setup, verify, complete, enabled
   const [secret, setSecret] = useState('');
   const [qrCode, setQrCode] = useState('');
   const [token, setToken] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [disabling, setDisabling] = useState(false);
   const { toast } = useToast();
+
+  // Check MFA status on mount
+  useEffect(() => {
+    const checkMfaStatus = async () => {
+      try {
+        const response = await api.get('/auth/me');
+        if (response.data.mfaEnabled) {
+          setStep('enabled');
+        }
+      } catch (error) {
+        console.error('Failed to check MFA status:', error);
+      }
+    };
+    checkMfaStatus();
+  }, []);
 
   const handleSetup = async () => {
     setLoading(true);
@@ -47,6 +63,25 @@ const MfaSetup = ({ onBack }) => {
       toast.error(message);
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const handleDisable = async () => {
+    const password = prompt('Enter your password to disable MFA:');
+    if (!password) return;
+
+    setDisabling(true);
+    try {
+      const response = await api.post('/auth/mfa/disable', { password });
+      toast.success('MFA disabled successfully');
+      setStep('setup');
+      setSecret('');
+      setQrCode('');
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to disable MFA';
+      toast.error(message);
+    } finally {
+      setDisabling(false);
     }
   };
 
@@ -282,6 +317,81 @@ const MfaSetup = ({ onBack }) => {
             <ArrowLeft className="mr-2 w-4 h-4" />
             <span>Back to Admin Panel</span>
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'enabled') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950 p-4 sm:p-6">
+        <div className="w-full max-w-md space-y-6 p-6 sm:p-8 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={onBack}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-slate-100 flex-1 text-center">MFA Setup</h2>
+            <div className="w-10" />
+          </div>
+
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <Shield className="w-8 h-8 text-green-500 dark:text-green-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">MFA Already Enabled</h3>
+            <p className="mt-2 text-gray-600 dark:text-slate-400 text-sm">
+              Your admin account is protected with multi-factor authentication.
+            </p>
+          </div>
+
+          <div className="space-y-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+            <div className="flex items-center gap-3 text-sm text-green-800 dark:text-green-300">
+              <CheckCircle className="w-5 h-5 flex-shrink-0" />
+              <span>MFA is active on this account</span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={handleDisable}
+              disabled={disabling}
+              className="w-full flex items-center justify-center px-4 py-3 bg-red-500 text-white rounded-lg disabled:opacity-50 transition-colors touch-manipulation min-h-[48px] text-base font-medium"
+            >
+              {disabling ? (
+                <>
+                  <span className="mr-2">Disabling...</span>
+                  <svg className="animate-spin w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                  </svg>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 w-4 h-4" />
+                  <span>Disable MFA</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={() => setStep('setup')}
+              className="w-full flex items-center justify-center px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors touch-manipulation min-h-[48px] text-base font-medium"
+            >
+              <RefreshCw className="mr-2 w-4 h-4" />
+              <span>Regenerate MFA (New QR Code)</span>
+            </button>
+
+            <button
+              onClick={onBack}
+              className="w-full flex items-center justify-center px-4 py-3 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 transition-colors text-sm font-medium"
+            >
+              <ArrowLeft className="mr-2 w-4 h-4" />
+              <span>Back to Admin Panel</span>
+            </button>
+          </div>
         </div>
       </div>
     );

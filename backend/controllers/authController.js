@@ -415,6 +415,7 @@ const getUserProfile = async (req, res) => {
     email: req.user.email,
     role: req.user.role,
     isActive: req.user.isActive,
+    mfaEnabled: req.user.mfaEnabled,
   });
 };
 
