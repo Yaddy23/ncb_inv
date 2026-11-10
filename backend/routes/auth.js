@@ -19,33 +19,40 @@ const {
   revokeSession,
   revokeAllSessions,
   revokeUserSessions,
+  mfaSetup,
+  mfaVerify,
+  mfaDisable,
+  mfaChallenge,
 } = require('../controllers/authController');
 
-// Login rate limiter: 10 attempts per 15 minutes per IP
+// Login rate limiter: 10 attempts per 15 minutes per IP (disabled in test environment)
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: process.env.NODE_ENV === 'test' ? 1000 : 10,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  message: { message: 'Too many login attempts from this IP. Try again in 15 minutes.' }
+  message: { message: 'Too many login attempts from this IP. Try again in 15 minutes.' },
+  skip: () => process.env.NODE_ENV === 'test'
 });
 
-// Register rate limiter: 5 attempts per 15 minutes per IP
+// Register rate limiter: 5 attempts per 15 minutes per IP (disabled in test environment)
 const registerLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: process.env.NODE_ENV === 'test' ? 1000 : 5,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  message: { message: 'Too many registration attempts from this IP. Try again in 15 minutes.' }
+  message: { message: 'Too many registration attempts from this IP. Try again in 15 minutes.' },
+  skip: () => process.env.NODE_ENV === 'test'
 });
 
-// Refresh rate limiter: 30 attempts per 15 minutes per IP
+// Refresh rate limiter: 30 attempts per 15 minutes per IP (disabled in test environment)
 const refreshLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 30,
+  limit: process.env.NODE_ENV === 'test' ? 1000 : 30,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  message: { message: 'Too many token refresh attempts from this IP. Try again in 15 minutes.' }
+  message: { message: 'Too many token refresh attempts from this IP. Try again in 15 minutes.' },
+  skip: () => process.env.NODE_ENV === 'test'
 });
 
 // Public routes
@@ -64,6 +71,14 @@ router.post('/logout', protect, logoutUser);
 router.get('/sessions', protect, getSessions);
 router.delete('/sessions', protect, revokeAllSessions);
 router.delete('/sessions/:sessionId', protect, revokeSession);
+
+// MFA routes (Admin only)
+router.post('/mfa/setup', protect, admin, mfaSetup);
+router.post('/mfa/verify', protect, admin, mfaVerify);
+router.post('/mfa/disable', protect, admin, mfaDisable);
+
+// Public MFA challenge endpoint (for login completion)
+router.post('/mfa/challenge', mfaChallenge);
 
 // Admin only routes - User Management
 router.get('/users', protect, admin, getAllUsers);

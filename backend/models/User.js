@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const { authenticator } = require('otplib');
 
 const userSchema = new mongoose.Schema({
   username: {
@@ -41,6 +42,14 @@ const userSchema = new mongoose.Schema({
   },
   lastLoginAt: {
     type: Date
+  },
+  // TOTP MFA fields (for Admin role)
+  mfaEnabled: {
+    type: Boolean,
+    default: false
+  },
+  mfaSecret: {
+    type: String
   },
   // Refresh token fields for session management
   refreshToken: {

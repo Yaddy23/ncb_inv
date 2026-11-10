@@ -46,7 +46,9 @@ const userLogSchema = new mongoose.Schema({
       'CANCEL_EF',
       'EXPIRE_RESERVATIONS',
       'REVOKE_SESSION',
-      'REVOKE_ALL_SESSIONS'
+      'REVOKE_ALL_SESSIONS',
+      'MFA_ENABLE',
+      'MFA_DISABLE'
     ]
   },
   details: {

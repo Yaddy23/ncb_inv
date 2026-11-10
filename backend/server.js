@@ -12,16 +12,31 @@ const app = express();
 // Trust proxy for rate limiting behind Render proxy
 app.set('trust proxy', 1);
 
-// Global rate limiter: 100 requests per 15 minutes per IP
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 100,
-  standardHeaders: 'draft-7',
-  legacyHeaders: false,
-  message: { message: 'Too many requests from this IP. Try again in 15 minutes.' }
-});
+// Global rate limiter: 100 requests per 15 minutes per IP (skip in test environment)
+// Skip book scanning endpoints to allow burst scanning (10+ books in seconds for box counting)
+if (process.env.NODE_ENV !== 'test') {
+  const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 100,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { message: 'Too many requests from this IP. Try again in 15 minutes.' },
+    skip: (req) => {
+      // Skip rate limiting for book scanning/import endpoints
+      const scanningPaths = [
+        '/api/books/lookup',
+        '/api/books/catalog',
+        '/api/stock/bulk-import',
+      ];
+      // Also skip POST /api/books (create) and PUT /api/books/:isbn (update qty)
+      const isBookWrite = req.method === 'POST' && req.path === '/api/books';
+      const isBookUpdate = req.method === 'PUT' && req.path.match(/^\/api\/books\/[^/]+$/);
 
-app.use(globalLimiter);
+      return scanningPaths.some(p => req.path.startsWith(p)) || isBookWrite || isBookUpdate;
+    }
+  });
+  app.use(globalLimiter);
+}
 
 // Ensure uploads directory exists (required for Multer on Render's ephemeral filesystem)
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -88,9 +103,25 @@ app.use('/api/ef', efRoutes);
 app.use('/api/marketing-executives', marketingExecutiveRoutes);
 app.use('/api/customers', customerRoutes);
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date() });
+// Health check endpoint - verifies DB connection
+app.get('/health', async (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const dbStatus = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : dbState === 3 ? 'disconnecting' : 'disconnected';
+
+  if (dbState !== 1) {
+    return res.status(503).json({
+      status: 'ERROR',
+      timestamp: new Date(),
+      database: dbStatus,
+      message: 'Database not connected'
+    });
+  }
+
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date(),
+    database: dbStatus
+  });
 });
 
 app.get('/', (req, res) => {
@@ -98,25 +129,42 @@ app.get('/', (req, res) => {
 });
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('Connected to MongoDB');
+const connectDB = async () => {
+  try {
+    // Use TESTMONGODB_URI in test environment, otherwise MONGODB_URI
+    const mongoUri = process.env.NODE_ENV === 'test' && process.env.TESTMONGODB_URI
+      ? process.env.TESTMONGODB_URI
+      : process.env.MONGODB_URI;
 
-  // Only start the server if not running in serverless environment (Vercel)
-  if (process.env.VERCEL !== '1') {
+    if (!mongoUri) {
+      throw new Error('MongoDB URI not configured');
+    }
+
+    console.log(`Connecting to MongoDB (NODE_ENV=${process.env.NODE_ENV})...`);
+    await mongoose.connect(mongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('Connected to MongoDB');
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    process.exit(1);
+  }
+};
+
+// Only start the server if not running in serverless environment (Vercel) and this is the main module
+if (process.env.VERCEL !== '1' && require.main === module) {
+  connectDB().then(() => {
     const PORT = process.env.PORT || 8080;
     const HOST = process.env.HOST || '0.0.0.0';
     app.listen(PORT, HOST, () => {
       console.log(`Server running on http://${HOST}:${PORT}`);
     });
-  }
-})
-.catch((error) => {
-  console.error('MongoDB connection error:', error);
-  process.exit(1);
-});
+  });
+} else {
+  connectDB();
+}
+
+module.exports = app;
 
 module.exports = app;

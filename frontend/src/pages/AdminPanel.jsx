@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
-import { Plus, Edit as EditIcon, Trash2, CheckCircle, RotateCcw, ShoppingBag, KeyRound } from 'lucide-react';
+import { Plus, Edit as EditIcon, Trash2, CheckCircle, RotateCcw, ShoppingBag, KeyRound, Shield } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import { Modal, Pagination, AlertBanner, EmptyState, Skeleton } from '../components/ui';
 import { useDebounce } from '../hooks/useDebounce';
+import MfaSetup from './MfaSetup';
 
 const AdminPanel = ({ user }) => {
   const [users, setUsers] = useState([]);
@@ -593,6 +594,14 @@ const AdminPanel = ({ user }) => {
             }`}>
             <RotateCcw className="w-4 h-4 inline mr-1" />
             Sessions
+          </button>
+          <button
+            onClick={() => setActiveTab('mfa')}
+            className={`flex-shrink-0 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors touch-manipulation min-h-[44px] ${
+              activeTab === 'mfa' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+            }`}>
+            <Shield className="w-4 h-4 inline mr-1" />
+            MFA Setup
           </button>
         </div>
       </div>
@@ -1458,6 +1467,13 @@ const AdminPanel = ({ user }) => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* MFA Setup Tab */}
+      {activeTab === 'mfa' && (
+        <div>
+          <MfaSetup onBack={() => setActiveTab('users')} />
         </div>
       )}
 

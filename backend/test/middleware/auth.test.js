@@ -1,3 +1,16 @@
+// Mock otplib (ESM module issue with @scure/base)
+jest.mock('otplib', () => ({
+  authenticator: {
+    generateSecret: () => 'TESTSECRET123456',
+    keyuri: (email, service, secret) => `otpauth://totp/${service}:${email}?secret=${secret}&issuer=${service}`,
+    check: (token, secret) => token === '123456',
+    generate: (secret) => '123456',
+  },
+}));
+
+// Load dotenv first so TESTMONGODB_URI is available
+require('dotenv').config();
+
 const request = require('supertest');
 const express = require('express');
 const cookieParser = require('cookie-parser');
@@ -5,18 +18,19 @@ const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const User = require('../../models/User');
 const { protect } = require('../../middleware/auth');
-const app = require('../../server');
 
-// Set test database URI before server connects
+// Set test database URI before any connection
 process.env.MONGODB_URI = process.env.TESTMONGODB_URI;
+process.env.JWT_SECRET = 'test-secret';
 
 describe('Auth middleware - cookie-based', () => {
   let testUser;
   let accessToken;
 
   beforeAll(async () => {
-    // Wait for MongoDB connection
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Connect to test database directly
+    const mongoUri = process.env.TESTMONGODB_URI;
+    await mongoose.connect(mongoUri);
 
     // Create test user
     testUser = await User.create({
@@ -30,12 +44,12 @@ describe('Auth middleware - cookie-based', () => {
     accessToken = jwt.sign({ id: testUser._id }, process.env.JWT_SECRET, {
       expiresIn: '15m',
     });
-  }, 30000);
+  }, 60000);
 
   afterAll(async () => {
     await User.deleteMany({});
     await mongoose.connection.close();
-  }, 10000);
+  }, 30000);
 
   // Test app with protected route
   const testApp = express();

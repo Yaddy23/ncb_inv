@@ -1,33 +1,65 @@
-const request = require('supertest');
-const mongoose = require('mongoose');
-const User = require('../../models/User');
-const { protect } = require('../../middleware/auth');
-const app = require('../../server'); // Use the actual server app
+// Mock otplib (ESM module issue with @scure/base)
+jest.mock('otplib', () => ({
+  authenticator: {
+    generateSecret: () => 'TESTSECRET123456',
+    keyuri: (email, service, secret) => `otpauth://totp/${service}:${email}?secret=${secret}&issuer=${service}`,
+    check: (token, secret) => token === '123456',
+    generate: (secret) => '123456',
+  },
+}));
 
-// Set test database URI before server connects
+// Load dotenv first so TESTMONGODB_URI is available
+require('dotenv').config();
+
+// Set test database URI before any connection
 process.env.MONGODB_URI = process.env.TESTMONGODB_URI;
+process.env.JWT_SECRET = 'test-secret';
+
+const request = require('supertest');
+const express = require('express');
+const cookieParser = require('cookie-parser');
+const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
+const User = require('../../models/User');
+const authRoutes = require('../../routes/auth');
+const { ensureCsrfCookie } = require('../../middleware/csrf');
+
+// Create test app
+const createTestApp = () => {
+  const app = express();
+  app.use(express.json());
+  app.use(cookieParser());
+  app.use(ensureCsrfCookie);
+  app.use('/api/auth', authRoutes);
+  return app;
+};
 
 describe('Cookie-based auth', () => {
+  let app;
+  let testUser;
 
   beforeAll(async () => {
-    // Wait for MongoDB connection
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Connect to test database directly
+    const mongoUri = process.env.TESTMONGODB_URI;
+    await mongoose.connect(mongoUri);
 
     // Create test user
-    await User.create({
+    testUser = await User.create({
       username: 'testuser',
       email: 'test@example.com',
       password: 'Test1234',
       role: 'Staff'
     });
-  }, 30000);
+  }, 60000);
 
   afterAll(async () => {
     await User.deleteMany({});
     await mongoose.connection.close();
-  }, 10000);
+  }, 30000);
 
   beforeEach(async () => {
+    app = createTestApp();
+
     // Clean up sessions for test user
     await User.updateMany({}, { sessions: [], refreshToken: undefined, refreshTokenExpires: undefined });
   });

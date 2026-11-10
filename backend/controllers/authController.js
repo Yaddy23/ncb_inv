@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
 const UserLog = require('../models/UserLog');
+const { generateSecret, generateURI, verify } = require('otplib');
+const QRCode = require('qrcode');
 
 // Cookie options for httpOnly cookies
 const cookieOptions = {
@@ -143,11 +145,22 @@ const loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Successful login - reset failed attempts
+    // Successful password verification - reset failed attempts
     if (user.failedLoginAttempts > 0 || user.lockUntil) {
       user.failedLoginAttempts = 0;
       user.lockUntil = undefined;
       await user.save();
+    }
+
+    // Check if MFA is required (Admin with MFA enabled)
+    if (user.role === 'Admin' && user.mfaEnabled) {
+      // Return MFA challenge - user must provide TOTP code
+      // We don't set cookies yet, just return the challenge
+      return res.json({
+        mfaRequired: true,
+        userId: user._id,
+        message: 'MFA verification required'
+      });
     }
 
     // Clean up expired sessions
@@ -174,11 +187,219 @@ const loginUser = async (req, res) => {
       email: user.email,
       role: user.role,
       isActive: user.isActive,
+      mfaEnabled: user.mfaEnabled,
       accessToken,
       refreshToken,
     });
   } catch (error) {
     res.status(401).json({ message: error.message });
+  }
+};
+
+// @desc    Setup MFA (generate secret and QR code) - Admin only
+// @route   POST /api/auth/mfa/setup
+// @access  Private/Admin
+const mfaSetup = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Only Admin role can have MFA
+    if (user.role !== 'Admin') {
+      return res.status(403).json({ message: 'MFA is only available for Admin users' });
+    }
+
+    // Generate a new secret
+    const secret = generateSecret();
+
+    // Generate QR code for authenticator app
+    const otpauth = generateURI({
+      issuer: 'Book Inventory System',
+      label: user.email,
+      secret: secret,
+    });
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauth);
+
+    // Store secret temporarily (will be saved after verification)
+    user.mfaSecret = secret;
+    await user.save();
+
+    res.json({
+      secret,
+      qrCode: qrCodeDataUrl,
+      message: 'Scan the QR code with your authenticator app, then verify with /api/auth/mfa/verify'
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Verify MFA code and enable MFA - Admin only
+// @route   POST /api/auth/mfa/verify
+// @access  Private/Admin
+const mfaVerify = async (req, res) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ message: 'MFA token is required' });
+  }
+
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Only Admin role can have MFA
+    if (user.role !== 'Admin') {
+      return res.status(403).json({ message: 'MFA is only available for Admin users' });
+    }
+
+    // Check if secret exists
+    if (!user.mfaSecret) {
+      return res.status(400).json({ message: 'MFA not set up. Call /api/auth/mfa/setup first.' });
+    }
+
+    // Verify the token
+    const { valid: isValid } = await verify({ token, secret: user.mfaSecret });
+
+    if (!isValid) {
+      return res.status(401).json({ message: 'Invalid MFA token' });
+    }
+
+    // Enable MFA
+    user.mfaEnabled = true;
+    await user.save();
+
+    // Log MFA enablement
+    await logUserActivity(user._id, 'MFA_ENABLE', 'Multi-factor authentication enabled', req);
+
+    res.json({ message: 'MFA enabled successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Disable MFA - Admin only
+// @route   POST /api/auth/mfa/disable
+// @access  Private/Admin
+const mfaDisable = async (req, res) => {
+  const { password } = req.body;
+
+  if (!password) {
+    return res.status(400).json({ message: 'Password is required to disable MFA' });
+  }
+
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Only Admin role can have MFA
+    if (user.role !== 'Admin') {
+      return res.status(403).json({ message: 'MFA is only available for Admin users' });
+    }
+
+    // Check if MFA is enabled
+    if (!user.mfaEnabled) {
+      return res.status(400).json({ message: 'MFA is not enabled' });
+    }
+
+    // Verify password
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid password' });
+    }
+
+    // Disable MFA
+    user.mfaEnabled = false;
+    user.mfaSecret = undefined;
+    await user.save();
+
+    // Log MFA disablement
+    await logUserActivity(user._id, 'MFA_DISABLE', 'Multi-factor authentication disabled', req);
+
+    res.json({ message: 'MFA disabled successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Verify MFA token and complete login - Admin only
+// @route   POST /api/auth/mfa/challenge
+// @access  Public
+const mfaChallenge = async (req, res) => {
+  const { userId, token } = req.body;
+
+  if (!userId || !token) {
+    return res.status(400).json({ message: 'User ID and MFA token are required' });
+  }
+
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Only Admin role can have MFA
+    if (user.role !== 'Admin') {
+      return res.status(403).json({ message: 'MFA is only available for Admin users' });
+    }
+
+    // Check if MFA is enabled
+    if (!user.mfaEnabled) {
+      return res.status(400).json({ message: 'MFA is not enabled for this user' });
+    }
+
+    // Check if secret exists
+    if (!user.mfaSecret) {
+      return res.status(400).json({ message: 'MFA secret not found' });
+    }
+
+    // Verify the token
+    const { valid: isValid } = await verify({ token, secret: user.mfaSecret });
+
+    if (!isValid) {
+      return res.status(401).json({ message: 'Invalid MFA token' });
+    }
+
+    // Clean up expired sessions
+    user.cleanExpiredSessions();
+
+    // Stamp last login time
+    user.lastLoginAt = new Date();
+
+    // Generate tokens
+    const accessToken = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user, req);
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+    await user.save();
+
+    // Set httpOnly cookies
+    setAuthCookies(res, accessToken, refreshToken, csrfToken);
+
+    // Log successful login with MFA
+    await logUserActivity(user._id, 'LOGIN', `User logged in successfully with MFA`, req);
+
+    res.json({
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      mfaEnabled: user.mfaEnabled,
+      accessToken,
+      refreshToken,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -766,4 +987,8 @@ module.exports = {
   revokeSession,
   revokeAllSessions,
   revokeUserSessions,
+  mfaSetup,
+  mfaVerify,
+  mfaDisable,
+  mfaChallenge,
 };

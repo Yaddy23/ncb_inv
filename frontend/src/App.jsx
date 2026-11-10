@@ -130,7 +130,13 @@ function App() {
             <Routes>
               <Route
                 path="/login"
-                element={user ? <Navigate to="/" replace /> : <Login onLogin={login} />}
+                element={
+                  user
+                    ? user.role === 'Admin'
+                      ? <Navigate to="/admin" replace />
+                      : <Navigate to="/" replace />
+                    : <Login onLogin={login} />
+                }
               />
               <Route
                 path="/"
