@@ -40,16 +40,10 @@ function App() {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const accessToken = localStorage.getItem('accessToken');
-        if (accessToken) {
-          const response = await api.get('/auth/me');
-          setUser(response.data);
-        }
+        const response = await api.get('/auth/me');
+        setUser(response.data);
       } catch (error) {
-        // Token invalid or expired
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
+        // Not authenticated or token expired - stay on login
       } finally {
         setLoading(false);
       }
@@ -60,7 +54,6 @@ function App() {
 
   const login = (userData) => {
     setUser(userData);
-    // Token is already stored in login page
   };
 
   const logout = async () => {
@@ -70,9 +63,6 @@ function App() {
       console.error('Logout API call failed:', error);
     } finally {
       setUser(null);
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
       clearCurrentToken();
     }
   };

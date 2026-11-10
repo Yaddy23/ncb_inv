@@ -28,10 +28,6 @@ const Login = ({ onLogin }) => {
       const response = await api.post('/auth/login', formData);
       const { accessToken, refreshToken, ...userData } = response.data;
 
-      // Store both tokens
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-      localStorage.setItem('user', JSON.stringify(userData));
       // Mirror the access token into IndexedDB for the offline scan queue
       // drainer (the service worker can't read localStorage)
       saveCurrentToken(accessToken);
