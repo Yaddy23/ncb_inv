@@ -6,10 +6,12 @@ const { generateSecret, generateURI, verify } = require('otplib');
 const QRCode = require('qrcode');
 
 // Cookie options for httpOnly cookies
+// Use 'none' for cross-site (different domains on Render), 'lax' for same-site
+const isProduction = process.env.NODE_ENV === 'production';
 const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
+  secure: isProduction,
+  sameSite: isProduction ? 'none' : 'lax',
   path: '/',
 };
 
