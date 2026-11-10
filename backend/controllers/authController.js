@@ -3,11 +3,47 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const UserLog = require('../models/UserLog');
 
+// Cookie options for httpOnly cookies
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  path: '/',
+};
+
 // Generate access token (short-lived: 15 minutes)
 const generateAccessToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: '15m',
   });
+};
+
+// Set auth cookies helper
+const setAuthCookies = (res, accessToken, refreshToken, csrfToken) => {
+  // Access token cookie (15 minutes)
+  res.cookie('accessToken', accessToken, {
+    ...cookieOptions,
+    maxAge: 15 * 60 * 1000,
+  });
+
+  // Refresh token cookie (7 days)
+  res.cookie('refreshToken', refreshToken, {
+    ...cookieOptions,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  // CSRF token cookie (24 hours)
+  res.cookie('csrfToken', csrfToken, {
+    ...cookieOptions,
+    maxAge: 24 * 60 * 60 * 1000,
+  });
+};
+
+// Clear auth cookies helper
+const clearAuthCookies = (res) => {
+  res.cookie('accessToken', '', { ...cookieOptions, maxAge: 0 });
+  res.cookie('refreshToken', '', { ...cookieOptions, maxAge: 0 });
+  res.cookie('csrfToken', '', { ...cookieOptions, maxAge: 0 });
 };
 
 // Generate refresh token (long-lived: 7 days)
@@ -123,7 +159,11 @@ const loginUser = async (req, res) => {
     // Generate tokens
     const accessToken = generateAccessToken(user._id);
     const refreshToken = generateRefreshToken(user, req);
+    const csrfToken = crypto.randomBytes(32).toString('hex');
     await user.save();
+
+    // Set httpOnly cookies
+    setAuthCookies(res, accessToken, refreshToken, csrfToken);
 
     // Log successful login
     await logUserActivity(user._id, 'LOGIN', `User logged in successfully`, req);
@@ -188,7 +228,11 @@ const registerUser = async (req, res) => {
       // Generate tokens for the new user
       const accessToken = generateAccessToken(user._id);
       const refreshToken = generateRefreshToken(user, req);
+      const csrfToken = crypto.randomBytes(32).toString('hex');
       await user.save();
+
+      // Set httpOnly cookies
+      setAuthCookies(res, accessToken, refreshToken, csrfToken);
 
       // Log user creation
       await logUserActivity(req.user._id, 'CREATE_USER', `Created new user: ${username} (${role || 'Staff'})`, req);
@@ -351,6 +395,9 @@ const logoutUser = async (req, res) => {
       }
     }
 
+    // Clear httpOnly cookies
+    clearAuthCookies(res);
+
     // Log logout
     await logUserActivity(req.user._id, 'LOGOUT', `User logged out`, req);
     res.json({ message: 'Logged out successfully' });
@@ -363,7 +410,8 @@ const logoutUser = async (req, res) => {
 // @route   POST /api/auth/refresh
 // @access  Public (requires valid refresh token)
 const refreshToken = async (req, res) => {
-  const { refreshToken } = req.body;
+  // Support both cookie-based and body-based refresh tokens
+  const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
 
   if (!refreshToken) {
     return res.status(400).json({ message: 'Refresh token is required' });
@@ -399,7 +447,11 @@ const refreshToken = async (req, res) => {
 
     // Rotate refresh token (generate new one, revoke old)
     const newRefreshToken = generateRefreshToken(user, req);
+    const newCsrfToken = crypto.randomBytes(32).toString('hex');
     await user.save();
+
+    // Set new httpOnly cookies (rotation)
+    setAuthCookies(res, newAccessToken, newRefreshToken, newCsrfToken);
 
     // Log token refresh
     await logUserActivity(user._id, 'LOGIN', `Access token refreshed`, req);
