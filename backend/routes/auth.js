@@ -30,9 +30,28 @@ const loginLimiter = rateLimit({
   message: { message: 'Too many login attempts from this IP. Try again in 15 minutes.' }
 });
 
+// Register rate limiter: 5 attempts per 15 minutes per IP
+const registerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Too many registration attempts from this IP. Try again in 15 minutes.' }
+});
+
+// Refresh rate limiter: 30 attempts per 15 minutes per IP
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Too many token refresh attempts from this IP. Try again in 15 minutes.' }
+});
+
 // Public routes
 router.post('/login', loginLimiter, loginUser);
-router.post('/refresh', refreshToken);
+router.post('/refresh', refreshLimiter, refreshToken);
+router.post('/register', protect, admin, registerLimiter, registerUser);
 
 // Protected routes
 router.get('/me', protect, getUserProfile);

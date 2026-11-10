@@ -4,12 +4,24 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
 
 // Trust proxy for rate limiting behind Render proxy
 app.set('trust proxy', 1);
+
+// Global rate limiter: 100 requests per 15 minutes per IP
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Too many requests from this IP. Try again in 15 minutes.' }
+});
+
+app.use(globalLimiter);
 
 // Ensure uploads directory exists (required for Multer on Render's ephemeral filesystem)
 const uploadsDir = path.join(__dirname, 'uploads');
