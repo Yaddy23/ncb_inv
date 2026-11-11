@@ -1,7 +1,8 @@
 import React from 'react';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/axios';
-import { Wrench, Clock, AlertCircle, UserShield, Loader2 } from 'lucide-react';
+import { Wrench, Clock, AlertCircle, UserShield, Loader2, LogIn } from 'lucide-react';
 
 function Maintenance() {
   const [maintenanceInfo, setMaintenanceInfo] = useState(null);
@@ -100,6 +101,26 @@ function Maintenance() {
             <p className="text-blue-600 dark:text-blue-400 text-sm">
               You are logged in as an administrator. <a href="/" className="underline hover:text-blue-700 dark:hover:text-blue-300">Access the system</a>
             </p>
+          </div>
+        )}
+
+        {/* Admin Login Button - shown when not logged in as admin */}
+        {!isAdmin && (
+          <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-center gap-2 text-purple-700 dark:text-purple-300 mb-3">
+              <UserShield className="w-5 h-5" />
+              <span className="font-medium">Administrator Login</span>
+            </div>
+            <p className="text-purple-600 dark:text-purple-400 text-sm mb-4">
+              Administrators can still access the system during maintenance.
+            </p>
+            <Link
+              to="/login"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors touch-manipulation min-h-[44px]"
+            >
+              <LogIn className="w-5 h-5" />
+              <span>Login as Administrator</span>
+            </Link>
           </div>
         )}
 
