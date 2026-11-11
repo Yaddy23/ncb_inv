@@ -31,7 +31,10 @@ describe('CSRF middleware', () => {
     const cookies = res.headers['set-cookie'];
     expect(cookies).toBeDefined();
     expect(cookies.some(c => c.startsWith('csrfToken=') && c.includes('HttpOnly'))).toBe(true);
-    expect(cookies.some(c => c.includes('SameSite=Strict'))).toBe(true);
+
+    // SameSite depends on NODE_ENV: 'lax' in dev/test, 'none' in production
+    const expectedSameSite = process.env.NODE_ENV === 'production' ? 'SameSite=None' : 'SameSite=Lax';
+    expect(cookies.some(c => c.includes(expectedSameSite))).toBe(true);
 
     // The cookie is set in response, not available in req.cookies for same request
     // Subsequent requests will have it in req.cookies
