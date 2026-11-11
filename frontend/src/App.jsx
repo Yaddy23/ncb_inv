@@ -92,17 +92,13 @@ function App() {
     return <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-slate-950 dark:text-slate-100">Loading...</div>;
   }
 
-  // Show maintenance page if maintenance mode is on and user is not admin
-  const isAdmin = user?.role === 'Admin';
-  if (maintenanceMode && !isAdmin) {
-    return <Maintenance />;
-  }
-
   return (
     <ToastProvider>
       <OnlineProvider>
         <ThemeProvider>
           <Router>
+            {/* Show maintenance page if maintenance mode is on and user is not admin */}
+            {maintenanceMode && user?.role !== 'Admin' && <Maintenance />}
           <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
             {/* Mobile Top Bar */}
           {user && isMobile && (
