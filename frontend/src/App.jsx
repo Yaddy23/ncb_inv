@@ -94,27 +94,16 @@ function App() {
 
   const isAdmin = user?.role === 'Admin';
 
-  // Show maintenance page only if maintenance mode is on and user is not admin
-  if (maintenanceMode && !isAdmin) {
-    return (
-      <ToastProvider>
-        <OnlineProvider>
-          <ThemeProvider>
-            <Router>
-              <Maintenance />
-            </Router>
-          </ThemeProvider>
-        </OnlineProvider>
-      </ToastProvider>
-    );
-  }
-
   return (
     <ToastProvider>
       <OnlineProvider>
         <ThemeProvider>
           <Router>
-          <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
+            {/* Show maintenance page for non-admin users when maintenance mode is on */}
+            {maintenanceMode && !isAdmin ? (
+              <Maintenance />
+            ) : (
+              <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
             {/* Mobile Top Bar */}
           {user && isMobile && (
             <header className="fixed top-0 left-0 right-0 topbar-height pt-safe bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 shadow-sm z-40 flex items-center px-4">
@@ -260,6 +249,7 @@ function App() {
             </Routes>
           </main>
         </div>
+        )}
         </Router>
         </ThemeProvider>
       </OnlineProvider>
