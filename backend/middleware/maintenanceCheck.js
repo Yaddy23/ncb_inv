@@ -1,12 +1,17 @@
 const SystemSettings = require('../models/SystemSettings');
 
 // Middleware to check maintenance mode for non-auth routes
-// Allows: all /api/auth/* endpoints (handled in controllers), /api/maintenance/status, /health, /
+// Allows: all /api/auth/* endpoints (handled in controllers), /api/maintenance/* (admin endpoints have their own auth), /health, /
 // Blocks: non-admin users on other routes during maintenance
 const maintenanceCheck = async (req, res, next) => {
   try {
     // Skip check for auth endpoints (handled in controllers)
     if (req.path.startsWith('/api/auth/')) {
+      return next();
+    }
+
+    // Skip check for maintenance endpoints (admin endpoints have their own protect+admin middleware)
+    if (req.path.startsWith('/api/maintenance/')) {
       return next();
     }
 
