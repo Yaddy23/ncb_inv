@@ -24,6 +24,15 @@ import { OnlineProvider, OnlineBanner } from './context/OnlineContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { useIsMobile } from './hooks/useMediaQuery';
 
+// MaintenanceGuard - extracted outside App to prevent remounting on every App render
+// (inline component functions create new references each render, causing subtree remount)
+const MaintenanceGuard = ({ children, maintenanceMode, isAdmin }) => {
+  if (maintenanceMode && !isAdmin) {
+    return <Maintenance />;
+  }
+  return children;
+};
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -93,14 +102,6 @@ function App() {
   }
 
   const isAdmin = user?.role === 'Admin';
-
-  // Wrapper component to check maintenance mode for routes (except login)
-  const MaintenanceGuard = ({ children }) => {
-    if (maintenanceMode && !isAdmin) {
-      return <Maintenance />;
-    }
-    return children;
-  };
 
   return (
     <ToastProvider>
