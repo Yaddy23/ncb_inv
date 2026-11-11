@@ -175,7 +175,7 @@ function App() {
               <Route
                 path="/"
                 element={
-                  <MaintenanceGuard>
+                  <MaintenanceGuard maintenanceMode={maintenanceMode} isAdmin={isAdmin}>
                     <PrivateRoute isAuthenticated={!!user}>
                       <Dashboard user={user} />
                     </PrivateRoute>
@@ -185,7 +185,7 @@ function App() {
               <Route
                 path="/books"
                 element={
-                  <MaintenanceGuard>
+                  <MaintenanceGuard maintenanceMode={maintenanceMode} isAdmin={isAdmin}>
                     <PrivateRoute isAuthenticated={!!user}>
                       <Books user={user} />
                     </PrivateRoute>
@@ -195,7 +195,7 @@ function App() {
               <Route
                 path="/scan"
                 element={
-                  <MaintenanceGuard>
+                  <MaintenanceGuard maintenanceMode={maintenanceMode} isAdmin={isAdmin}>
                     <PrivateRoute isAuthenticated={!!user}>
                       <Scan user={user} />
                     </PrivateRoute>
@@ -205,7 +205,7 @@ function App() {
               <Route
                 path="/import-export"
                 element={
-                  <MaintenanceGuard>
+                  <MaintenanceGuard maintenanceMode={maintenanceMode} isAdmin={isAdmin}>
                     <PrivateRoute isAuthenticated={!!user && user.role === 'Admin'}>
                       <ImportExport user={user} />
                     </PrivateRoute>
@@ -215,7 +215,7 @@ function App() {
               <Route
                 path="/profile"
                 element={
-                  <MaintenanceGuard>
+                  <MaintenanceGuard maintenanceMode={maintenanceMode} isAdmin={isAdmin}>
                     <PrivateRoute isAuthenticated={!!user}>
                       <Profile user={user} onLogin={login} onLogout={logout} />
                     </PrivateRoute>
@@ -225,7 +225,7 @@ function App() {
               <Route
                 path="/admin"
                 element={
-                  <MaintenanceGuard>
+                  <MaintenanceGuard maintenanceMode={maintenanceMode} isAdmin={isAdmin}>
                     <PrivateRoute isAuthenticated={!!user && user.role === 'Admin'}>
                       <AdminPanel user={user} />
                     </PrivateRoute>
@@ -235,7 +235,7 @@ function App() {
               <Route
                 path="/delivery-receipts"
                 element={
-                  <MaintenanceGuard>
+                  <MaintenanceGuard maintenanceMode={maintenanceMode} isAdmin={isAdmin}>
                     <PrivateRoute isAuthenticated={!!user}>
                       <DeliveryReceipts user={user} />
                     </PrivateRoute>
@@ -245,7 +245,7 @@ function App() {
               <Route
                 path="/sales-invoices"
                 element={
-                  <MaintenanceGuard>
+                  <MaintenanceGuard maintenanceMode={maintenanceMode} isAdmin={isAdmin}>
                     <PrivateRoute isAuthenticated={!!user}>
                       <SalesInvoices user={user} />
                     </PrivateRoute>
@@ -255,7 +255,7 @@ function App() {
               <Route
                 path="/reservations"
                 element={
-                  <MaintenanceGuard>
+                  <MaintenanceGuard maintenanceMode={maintenanceMode} isAdmin={isAdmin}>
                     <PrivateRoute isAuthenticated={!!user && user.role === 'Admin'}>
                       <Reservations user={user} />
                     </PrivateRoute>
@@ -265,7 +265,7 @@ function App() {
               <Route
                 path="/evaluation-forms"
                 element={
-                  <MaintenanceGuard>
+                  <MaintenanceGuard maintenanceMode={maintenanceMode} isAdmin={isAdmin}>
                     <PrivateRoute isAuthenticated={!!user}>
                       <EvaluationForms user={user} />
                     </PrivateRoute>
