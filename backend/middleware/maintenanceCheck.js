@@ -1,7 +1,10 @@
 const SystemSettings = require('../models/SystemSettings');
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
 // Middleware to check maintenance mode for non-auth routes
 // Allows: all /api/auth/* endpoints (handled in controllers), /api/maintenance/* (admin endpoints have their own auth), /health, /
+// During maintenance: allows admin users (verified via JWT) to access all endpoints
 // Blocks: non-admin users on other routes during maintenance
 const maintenanceCheck = async (req, res, next) => {
   try {
@@ -27,9 +30,27 @@ const maintenanceCheck = async (req, res, next) => {
       return next();
     }
 
-    // During maintenance, allow admin users to pass through
-    if (req.user && req.user.role === 'Admin') {
-      return next();
+    // During maintenance, check if user is admin by verifying JWT token
+    // Token can be in cookie (accessToken) or Authorization header
+    let token;
+    if (req.cookies?.accessToken) {
+      token = req.cookies.accessToken;
+    } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id).select('role');
+        if (user && user.role === 'Admin') {
+          // Attach user to req for downstream middleware/controllers
+          req.user = user;
+          return next();
+        }
+      } catch (jwtError) {
+        // Invalid token, treat as non-admin
+      }
     }
 
     // For non-admin users, return maintenance response
