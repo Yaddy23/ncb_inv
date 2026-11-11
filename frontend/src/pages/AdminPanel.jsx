@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
-import { Plus, Edit as EditIcon, Trash2, CheckCircle, RotateCcw, ShoppingBag, KeyRound, Shield } from 'lucide-react';
+import { Plus, Edit as EditIcon, Trash2, CheckCircle, RotateCcw, ShoppingBag, KeyRound, Shield, Wrench, Clock } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import { Modal, Pagination, AlertBanner, EmptyState, Skeleton } from '../components/ui';
 import { useDebounce } from '../hooks/useDebounce';
@@ -22,6 +22,14 @@ const AdminPanel = ({ user }) => {
   const [usersPerPage, setUsersPerPage] = useState(10);
   const [logsPerPage, setLogsPerPage] = useState(50);
   const [activeTab, setActiveTab] = useState('users');
+
+  // Maintenance mode state
+  const [maintenanceSettings, setMaintenanceSettings] = useState({
+    maintenanceMode: false,
+    message: '',
+    estimatedEnd: ''
+  });
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
 
   const { confirmDialog, toast } = useToast();
 
@@ -354,6 +362,77 @@ const AdminPanel = ({ user }) => {
     }
   };
 
+  // Fetch maintenance settings
+  const fetchMaintenanceSettings = async () => {
+    setMaintenanceLoading(true);
+    try {
+      const response = await api.get('/maintenance/settings');
+      setMaintenanceSettings(response.data);
+      setError('');
+    } catch (err) {
+      setError('Failed to fetch maintenance settings');
+      console.error(err);
+      toast.error('Failed to load maintenance settings');
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  };
+
+  // Toggle maintenance mode
+  const handleToggleMaintenance = async () => {
+    const newMode = !maintenanceSettings.maintenanceMode;
+    const confirmMessage = newMode
+      ? 'Enable maintenance mode? This will block staff access to the system.'
+      : 'Disable maintenance mode? Staff will be able to access the system again.';
+
+    if (await confirmDialog(confirmMessage, {
+      title: newMode ? 'Enable Maintenance Mode' : 'Disable Maintenance Mode',
+      danger: newMode,
+      confirmText: newMode ? 'Enable' : 'Disable'
+    })) {
+      setMaintenanceLoading(true);
+      try {
+        await api.post('/maintenance/toggle', {
+          maintenanceMode: newMode,
+          message: maintenanceSettings.message,
+          estimatedEnd: maintenanceSettings.estimatedEnd || null
+        });
+        setSuccess(`Maintenance mode ${newMode ? 'enabled' : 'disabled'} successfully`);
+        toast.success(`Maintenance mode ${newMode ? 'enabled' : 'disabled'}`);
+        fetchMaintenanceSettings();
+      } catch (err) {
+        const message = err.response?.data?.message || `Failed to ${newMode ? 'enable' : 'disable'} maintenance mode`;
+        setError(message);
+        toast.error(message);
+        console.error(err);
+      } finally {
+        setMaintenanceLoading(false);
+      }
+    }
+  };
+
+  // Update maintenance settings (message and estimated end)
+  const handleUpdateMaintenanceSettings = async (e) => {
+    e.preventDefault();
+    setMaintenanceLoading(true);
+    try {
+      await api.post('/maintenance/toggle', {
+        maintenanceMode: maintenanceSettings.maintenanceMode,
+        message: maintenanceSettings.message,
+        estimatedEnd: maintenanceSettings.estimatedEnd || null
+      });
+      setSuccess('Maintenance settings updated successfully');
+      toast.success('Settings updated');
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to update maintenance settings';
+      setError(message);
+      toast.error(message);
+      console.error(err);
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  };
+
   // Revoke a specific session (admin can revoke any user's session)
   const handleRevokeSession = async (sessionId, username) => {
     const sure = await confirmDialog(
@@ -602,6 +681,14 @@ const AdminPanel = ({ user }) => {
             }`}>
             <Shield className="w-4 h-4 inline mr-1" />
             MFA Setup
+          </button>
+          <button
+            onClick={() => { setActiveTab('maintenance'); fetchMaintenanceSettings(); }}
+            className={`flex-shrink-0 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors touch-manipulation min-h-[44px] ${
+              activeTab === 'maintenance' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+            }`}>
+            <Wrench className="w-4 h-4 inline mr-1" />
+            Maintenance
           </button>
         </div>
       </div>
@@ -1474,6 +1561,117 @@ const AdminPanel = ({ user }) => {
       {activeTab === 'mfa' && (
         <div>
           <MfaSetup onBack={() => setActiveTab('users')} />
+        </div>
+      )}
+
+      {/* Maintenance Mode Tab */}
+      {activeTab === 'maintenance' && (
+        <div>
+          <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="w-full sm:w-auto flex-1">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-slate-100">
+                Maintenance Mode
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                Control system maintenance mode. When enabled, staff users cannot access the system.
+              </p>
+            </div>
+          </div>
+
+          {error && <AlertBanner tone="error">{error}</AlertBanner>}
+          {success && <AlertBanner tone="success">{success}</AlertBanner>}
+
+          {/* Status Card */}
+          <div className="mb-6 bg-white dark:bg-slate-900 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Current Status</h3>
+              <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                maintenanceSettings.maintenanceMode
+                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
+                  : 'bg-green-100 text-green-700 dark:bg-emerald-500/20 dark:text-emerald-400'
+              }`}>
+                {maintenanceSettings.maintenanceMode ? 'MAINTENANCE MODE ACTIVE' : 'NORMAL OPERATION'}
+              </span>
+            </div>
+
+            {maintenanceSettings.message && (
+              <div className="mb-4 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-lg">
+                <p className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Maintenance Message</p>
+                <p className="text-gray-600 dark:text-slate-400">{maintenanceSettings.message}</p>
+              </div>
+            )}
+
+            {maintenanceSettings.estimatedEnd && (
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                <Clock className="w-5 h-5" />
+                <span className="font-medium">
+                  Estimated completion: {new Date(maintenanceSettings.estimatedEnd).toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Toggle Button */}
+          <div className="mb-6 bg-white dark:bg-slate-900 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-slate-800">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">Toggle Maintenance Mode</h3>
+            <button
+              onClick={handleToggleMaintenance}
+              disabled={maintenanceLoading}
+              className={`flex items-center justify-center space-x-2 px-6 py-3 rounded-lg transition-colors touch-manipulation min-h-[44px] min-w-[200px] ${
+                maintenanceSettings.maintenanceMode
+                  ? 'bg-red-500 hover:bg-red-600 text-white'
+                  : 'bg-green-500 hover:bg-green-600 text-white'
+              } disabled:opacity-50`}
+            >
+              <Wrench className="w-5 h-5" />
+              <span className="font-medium">
+                {maintenanceLoading ? 'Updating...' : maintenanceSettings.maintenanceMode ? 'Disable Maintenance Mode' : 'Enable Maintenance Mode'}
+              </span>
+            </button>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mt-2 text-center">
+              {maintenanceSettings.maintenanceMode
+                ? 'Staff users will be blocked from accessing the system. Admins can still log in.'
+                : 'Staff users will be able to access the system normally.'}
+            </p>
+          </div>
+
+          {/* Settings Form */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-slate-800">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">Maintenance Settings</h3>
+            <form onSubmit={handleUpdateMaintenanceSettings} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">
+                  Maintenance Message <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={maintenanceSettings.message}
+                  onChange={(e) => setMaintenanceSettings(prev => ({ ...prev, message: e.target.value }))}
+                  rows={3}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-blue-500 dark:border-slate-600 dark:placeholder-slate-500 touch-manipulation min-h-[44px] text-base"
+                  placeholder="Enter a message to display to users during maintenance..."
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">
+                  Estimated End Time (Optional)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={maintenanceSettings.estimatedEnd ? new Date(maintenanceSettings.estimatedEnd).toISOString().slice(0, 16) : ''}
+                  onChange={(e) => setMaintenanceSettings(prev => ({ ...prev, estimatedEnd: e.target.value ? new Date(e.target.value).toISOString() : '' }))}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-blue-500 dark:border-slate-600 dark:placeholder-slate-500 touch-manipulation min-h-[44px] text-base"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={maintenanceLoading}
+                className="flex items-center justify-center space-x-2 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 touch-manipulation min-h-[44px] transition-colors"
+              >
+                <span>Save Settings</span>
+              </button>
+            </form>
+          </div>
         </div>
       )}
 
