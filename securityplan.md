@@ -441,7 +441,7 @@ if (search) {
 | **A03: Injection** | ✅ Covered | **Regex injection fixed** - $text search with text indexes replaces $regex |
 | **A04: Insecure Design** | ✅ Good | Auth design sound; session rotation implemented |
 | **A05: Security Misconfiguration** | ✅ Covered | **Global rate limiting (100/15m)**; **CSP implemented**; **Helmet.js security headers** |
-| **A06: Vulnerable Components** | ⚠️ Unknown | No automated dependency scanning (Sprint 3) |
+| **A06: Vulnerable Components** | ✅ Covered | **Dependabot + npm audit CI implemented** |
 | **A07: Auth Failures** | ✅ Strong | Lockout, rotation, generic errors, session mgmt, **MFA (Admin)** |
 | **A08: Software/Data Integrity** | ⚠️ Partial | No CI/CD supply chain verification |
 | **A09: Logging Failures** | ✅ Strong | Comprehensive audit trail; **Security event alerting** |
@@ -452,8 +452,8 @@ if (search) {
 | Function | Controls Present | Gaps |
 |----------|------------------|------|
 | **Identify** | Asset inventory (code), data classification | No formal risk assessment |
-| **Protect** | AuthN/AuthZ, encryption, training (implied), **MFA (Admin)**, **Cookie-based auth**, **Global rate limiting**, **CSP**, **Helmet.js headers** | JWT secret rotation |
-| **Detect** | Audit logs, error logging, **Security event alerting** | No SIEM |
+| **Protect** | AuthN/AuthZ, encryption, training (implied), **MFA (Admin)**, **Cookie-based auth**, **Global rate limiting**, **CSP**, **Helmet.js headers**, **JWT secret rotation** | |
+| **Detect** | Audit logs, error logging, **Security event alerting**, **Dependency scanning** | No SIEM |
 | **Respond** | Session revocation, password reset, **Security alerts** | No incident response plan |
 | **Recover** | Atlas backups, Render redeploys | No tested DR plan, no backup verification |
 
@@ -468,13 +468,13 @@ if (search) {
 | **R1** | XSS steals localStorage tokens → full account takeover | High | Critical | **20** | **P0** | ✅ DONE |
 | **R2** | No global rate limiting → credential stuffing/DoS | High | High | **16** | **P0** | ✅ DONE |
 | **R3** | Regex injection → NoSQL injection / ReDoS | Medium | High | **12** | **P1** | ✅ DONE (Sprint 2) |
-| **R4** | JWT_SECRET never rotated → long-term compromise | Low | Critical | **12** | **P1** | Sprint 3 |
+| **R4** | JWT_SECRET never rotated → long-term compromise | Low | Critical | **12** | **P1** | ✅ DONE (Sprint 3) |
 | **R5** | No CSP → XSS amplified, data exfiltration | Medium | High | **12** | **P1** | ✅ DONE (Sprint 2) |
 | **R6** | No security headers → clickjacking, MIME sniffing | Medium | Medium | **9** | **P2** | ✅ DONE (Sprint 2 - Helmet.js) |
 | **R7** | No alerting on security events | Medium | High | **12** | **P1** | ✅ DONE (Sprint 2) |
-| **R8** | No dependency scanning → supply chain attack | Low | High | **8** | **P2** | Sprint 3 |
+| **R8** | No dependency scanning → supply chain attack | Low | High | **8** | **P2** | ✅ DONE (Sprint 3) |
 | **R9** | No MFA for Admin → credential theft = full access | Medium | Critical | **16** | **P0** | ✅ DONE |
-| **R10** | File upload validation bypass → RCE | Low | Critical | **10** | **P2** | Sprint 3 |
+| **R10** | File upload validation bypass → RCE | Low | Critical | **10** | **P2** | ✅ DONE (Sprint 3) |
 
 **Scoring:** Likelihood (Low=1, Medium=2, High=3) × Impact (Low=1, Medium=4, High=6, Critical=8)
 
@@ -492,11 +492,11 @@ if (search) {
 
 > **Note:** R4 (JWT_SECRET rotation) was deferred to Sprint 3 as it requires a coordinated deployment procedure (new secret generation, rolling deploy, session revocation) that is better handled as a standalone operational task.
 
-#### Sprint 3 (P2 - Within 1 month)
-- [ ] **R4**: Implement JWT_SECRET rotation procedure
-- [ ] **R6**: Add Helmet.js for security headers
-- [ ] **R8**: Add Dependabot + `npm audit` in CI
-- [ ] **R10**: Enhance file upload validation (content-type, magic bytes)
+#### Sprint 3 (P2 - Within 1 month) ✅ COMPLETED
+- [x] **R4**: Implement JWT_SECRET rotation procedure
+- [x] **R6**: Add Helmet.js for security headers
+- [x] **R8**: Add Dependabot + `npm audit` in CI
+- [x] **R10**: Enhance file upload validation (content-type, magic bytes)
 
 #### Ongoing
 - [ ] Quarterly JWT_SECRET rotation
