@@ -6,12 +6,14 @@ const Book = require('../models/Book');
 const StockTransaction = require('../models/StockTransaction');
 const Customer = require('../models/Customer');
 const { protect, admin } = require('../middleware/auth');
+const { roleBasedLimiter } = require('../middleware/rateLimit');
 const UserLog = require('../models/UserLog');
 const { generate, generateEF } = require('../services/documentGenerator');
 
 // All document routes require auth; cancelling issued docs is admin-only
 // (matching the frontend, which only shows the Cancel button to admins)
 router.use(protect);
+router.use(roleBasedLimiter);
 
 // Helper function to log user activities
 const logUserActivity = async (userId, action, details = '', req = null) => {

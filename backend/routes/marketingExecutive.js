@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const MarketingExecutive = require('../models/MarketingExecutive');
 const { protect, admin } = require('../middleware/auth');
+const { roleBasedLimiter } = require('../middleware/rateLimit');
 
 // Reads are open to all authenticated users (the EF/DR/SI form dropdown
 // fetches /active); creating/updating/deleting executives is admin-only
 router.use(protect);
+router.use(roleBasedLimiter);
 
 // List all marketing executives
 router.get('/', async (req, res) => {

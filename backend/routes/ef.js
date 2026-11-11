@@ -7,11 +7,13 @@ const Book = require('../models/Book');
 const StockTransaction = require('../models/StockTransaction');
 const Customer = require('../models/Customer');
 const { protect, admin } = require('../middleware/auth');
+const { roleBasedLimiter } = require('../middleware/rateLimit');
 const UserLog = require('../models/UserLog');
 const { generateEF } = require('../services/documentGenerator');
 
 // Apply auth + admin to all routes
 router.use(protect);
+router.use(roleBasedLimiter);
 
 // Helper function to log user activities
 const logUserActivity = async (userId, action, details = '', req = null) => {

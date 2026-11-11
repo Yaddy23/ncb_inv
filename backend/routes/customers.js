@@ -5,10 +5,12 @@ const DeliveryReceipt = require('../models/DeliveryReceipt');
 const SalesInvoice = require('../models/SalesInvoice');
 const EvaluationForm = require('../models/EvaluationForm');
 const { protect, admin } = require('../middleware/auth');
+const { roleBasedLimiter } = require('../middleware/rateLimit');
 
 // Reads (autocomplete, lists) are open to all authenticated users;
 // create/update/delete are admin-only, mirroring marketing executives
 router.use(protect);
+router.use(roleBasedLimiter);
 
 const NAME_COLLATION = { locale: 'en', strength: 2 };
 
