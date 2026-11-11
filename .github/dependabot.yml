@@ -1,0 +1,76 @@
+# Dependabot Configuration
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "chore(backend):"
+    groups:
+      development-dependencies:
+        patterns:
+          - "@babel/*"
+          - "jest"
+          - "nodemon"
+          - "supertest"
+        update-types:
+          - "minor"
+          - "patch"
+      production-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+        exclude-patterns:
+          - "@babel/*"
+          - "jest"
+          - "nodemon"
+          - "supertest"
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:30"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "chore(frontend):"
+    groups:
+      development-dependencies:
+        patterns:
+          - "@playwright/*"
+          - "@types/*"
+          - "@vitejs/*"
+          - "autoprefixer"
+          - "postcss"
+          - "tailwindcss"
+          - "vite"
+        update-types:
+          - "minor"
+          - "patch"
+      production-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+        exclude-patterns:
+          - "@playwright/*"
+          - "@types/*"
+          - "@vitejs/*"
+          - "autoprefixer"
+          - "postcss"
+          - "tailwindcss"
+          - "vite"

@@ -18,16 +18,16 @@ This document provides a comprehensive security review of the **NCB Inventory Ma
 - **Authorization:** Role-based (Admin / Staff)
 - **Deployment:** Render (web services, PostgreSQL, cron jobs)
 
-### Key Findings (Post-Sprint 1)
+### Key Findings (Post-Sprint 2)
 | Area | Rating | Notes |
 |------|--------|-------|
 | Authentication | ✅ Strong | Short-lived access tokens (15m), refresh token rotation, account lockout, session management, **MFA (Admin)** |
 | Authorization | ✅ Strong | RBAC enforced at route and controller level; admin-only routes protected |
-| Input Validation | ⚠️ Moderate | Some controllers validate, but not centralized; MongoDB injection risk in regex searches |
+| Input Validation | ✅ Strong | **Regex injection fixed** - $text search with text indexes replaces $regex |
 | Data Protection | ✅ Good | bcryptjs (10 rounds), SHA-256 for refresh tokens, no sensitive data in logs |
-| API Security | ⚠️ Moderate | **Global rate limiting added (100/15m)**; security headers still missing |
-| Frontend Security | ⚠️ Moderate | **Tokens moved to httpOnly cookies (XSS mitigated)**; CSP not configured, no X-Frame-Options |
-| Logging/Audit | ✅ Good | Comprehensive UserLog model tracks all sensitive actions with IP/User-Agent |
+| API Security | ✅ Strong | **Global rate limiting (100/15m)**; **Security event alerting implemented** |
+| Frontend Security | ⚠️ Moderate | **Tokens moved to httpOnly cookies (XSS mitigated)**; **CSP implemented (report-only)**; X-Frame-Options via Helmet.js |
+| Logging/Audit | ✅ Strong | Comprehensive UserLog model tracks all sensitive actions with IP/User-Agent; **Security alerts logged** |
 | Infrastructure | ✅ Good | Render managed services, env vars for secrets, separate test DB |
 
 ---
@@ -233,9 +233,9 @@ Role Hierarchy:
 | # | Vulnerability | Location | Severity | Evidence |
 |---|--------------|----------|----------|----------|
 | **API-01** | **No global rate limiting** | All endpoints except login | **High** | ✅ **DONE** - Global rate limiting implemented (100 req/15min/IP) with scanning exemptions |
-| **API-02** | **Regex injection in search** | `bookController.js:65-73`, `stockController.js:475-488` | **High** | User input directly in `$regex` without escaping |
+| **API-02** | **Regex injection in search** | `bookController.js:65-73`, `stockController.js:475-488` | **High** | ✅ **DONE** - Replaced $regex with $text search + text indexes on all searchable models |
 | **API-03** | **No request validation middleware** | All controllers | Medium | Inconsistent validation; some trust req.body |
-| **API-04** | **Missing security headers** | Express app | Medium | No Helmet.js; no CSP, HSTS, X-Frame-Options |
+| **API-04** | **Missing security headers** | Express app | Medium | ✅ **DONE** - Helmet.js with CSP (report-only dev, enforce prod), HSTS, X-Frame-Options |
 | **API-05** | **No API versioning** | All routes | Low | Breaking changes risk |
 | **API-06** | **Sensitive data in error responses** | Catch blocks return `error.message` | Medium | Potential info leakage |
 | **API-07** | **No request/response logging** | server.js | Medium | Hard to detect attacks |
@@ -299,16 +299,16 @@ if (search) {
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 6.2 Security Controls (Post-Sprint 1)
+### 6.2 Security Controls (Post-Sprint 2)
 
 | Control | Status | Implementation |
 |---------|--------|----------------|
 | **HTTPS Only** | ✅ | Render enforces; `VITE_API_URL` uses HTTPS in prod |
 | **Secure Cookies** | ✅ | **DONE** - httpOnly cookies with Secure, SameSite=Strict |
-| **CSP** | ❌ | Not configured (Sprint 2) |
-| **X-Frame-Options** | ❌ | Not set (Sprint 3 - Helmet.js) |
-| **X-Content-Type-Options** | ❌ | Not set (Sprint 3 - Helmet.js) |
-| **Referrer-Policy** | ❌ | Not set (Sprint 3 - Helmet.js) |
+| **CSP** | ✅ | **DONE** - Helmet.js CSP (report-only dev, enforce prod) |
+| **X-Frame-Options** | ✅ | **DONE** - Helmet.js sets SAMEORIGIN |
+| **X-Content-Type-Options** | ✅ | **DONE** - Helmet.js sets nosniff |
+| **Referrer-Policy** | ✅ | **DONE** - Helmet.js sets strict-origin-when-cross-origin |
 | **Auto Token Refresh** | ✅ | Axios interceptor with queue (cookies sent automatically) |
 | **Logout Cleanup** | ✅ | Clears cookies + IndexedDB |
 | **Route Guards** | ✅ | `PrivateRoute` + role checks |
@@ -320,8 +320,8 @@ if (search) {
 | # | Vulnerability | Severity | Impact |
 |---|--------------|----------|--------|
 | **FE-01** | **Tokens in localStorage** | **Critical** | ✅ **DONE** - Migrated to httpOnly cookies; XSS can no longer steal tokens |
-| **FE-02** | **No Content Security Policy** | **High** | XSS risk amplified; inline scripts/styles allowed |
-| **FE-03** | **No security headers** | Medium | Clickjacking, MIME sniffing, referrer leakage |
+| **FE-02** | **No Content Security Policy** | **High** | ✅ **DONE** - CSP implemented via Helmet.js |
+| **FE-03** | **No security headers** | Medium | ✅ **DONE** - Helmet.js provides X-Frame-Options, X-Content-Type-Options, Referrer-Policy |
 | **FE-04** | **Refresh token in localStorage** | **High** | ✅ **DONE** - Migrated to httpOnly cookies with CSRF protection |
 | **FE-05** | **AutoComplete on password** | Low | Browser password managers (actually good UX) |
 | **FE-06** | **No Subresource Integrity** | Low | CDN compromise risk |
@@ -423,7 +423,7 @@ if (search) {
 | Gap | Severity | Recommendation |
 |-----|----------|----------------|
 | No centralized log aggregation | Medium | Ship to Datadog/Logtail/Splunk |
-| No alerting on anomalies | **High** | Alert on: >10 failed logins/min, new admin created, bulk delete |
+| **No alerting on anomalies** | **High** | ✅ **DONE** - Security alerting for: >10 failed logins/min, new admin created, bulk delete, MFA disabled, admin login from new device |
 | No log integrity protection | Medium | Consider append-only / signed logs |
 | No security incident runbook | **High** | Document: detection → containment → eradication → recovery |
 | Render metrics limited | Medium | Enable Render metrics; add custom business metrics |
@@ -438,13 +438,13 @@ if (search) {
 |----------|--------|-------|
 | **A01: Broken Access Control** | ✅ Covered | RBAC enforced at route + controller |
 | **A02: Cryptographic Failures** | ⚠️ Partial | TLS ok; JWT secret rotation missing; localStorage tokens → **DONE** (cookies) |
-| **A03: Injection** | ⚠️ Partial | NoSQL injection risk in regex searches |
+| **A03: Injection** | ✅ Covered | **Regex injection fixed** - $text search with text indexes replaces $regex |
 | **A04: Insecure Design** | ✅ Good | Auth design sound; session rotation implemented |
-| **A05: Security Misconfiguration** | ⚠️ Partial | Missing security headers, CSP, global rate limit → **DONE** (rate limit) |
-| **A06: Vulnerable Components** | ⚠️ Unknown | No automated dependency scanning |
-| **A07: Auth Failures** | ✅ Strong | Lockout, rotation, generic errors, session mgmt |
+| **A05: Security Misconfiguration** | ✅ Covered | **Global rate limiting (100/15m)**; **CSP implemented**; **Helmet.js security headers** |
+| **A06: Vulnerable Components** | ⚠️ Unknown | No automated dependency scanning (Sprint 3) |
+| **A07: Auth Failures** | ✅ Strong | Lockout, rotation, generic errors, session mgmt, **MFA (Admin)** |
 | **A08: Software/Data Integrity** | ⚠️ Partial | No CI/CD supply chain verification |
-| **A09: Logging Failures** | ✅ Good | Comprehensive audit trail |
+| **A09: Logging Failures** | ✅ Strong | Comprehensive audit trail; **Security event alerting** |
 | **A10: SSRF** | ✅ N/A | No outbound requests to user-supplied URLs |
 
 ### 9.2 NIST CSF Mapping
@@ -452,9 +452,9 @@ if (search) {
 | Function | Controls Present | Gaps |
 |----------|------------------|------|
 | **Identify** | Asset inventory (code), data classification | No formal risk assessment |
-| **Protect** | AuthN/AuthZ, encryption, training (implied), **MFA (Admin)**, **Cookie-based auth**, **Global rate limiting** | CSP, security headers, rate limiting (partial) |
-| **Detect** | Audit logs, error logging | No SIEM, no alerting |
-| **Respond** | Session revocation, password reset | No incident response plan |
+| **Protect** | AuthN/AuthZ, encryption, training (implied), **MFA (Admin)**, **Cookie-based auth**, **Global rate limiting**, **CSP**, **Helmet.js headers** | JWT secret rotation |
+| **Detect** | Audit logs, error logging, **Security event alerting** | No SIEM |
+| **Respond** | Session revocation, password reset, **Security alerts** | No incident response plan |
 | **Recover** | Atlas backups, Render redeploys | No tested DR plan, no backup verification |
 
 ---
@@ -467,11 +467,11 @@ if (search) {
 |---------|-------------|------------|--------|------------|----------|
 | **R1** | XSS steals localStorage tokens → full account takeover | High | Critical | **20** | **P0** | ✅ DONE |
 | **R2** | No global rate limiting → credential stuffing/DoS | High | High | **16** | **P0** | ✅ DONE |
-| **R3** | Regex injection → NoSQL injection / ReDoS | Medium | High | **12** | **P1** | Sprint 2 |
-| **R4** | JWT_SECRET never rotated → long-term compromise | Low | Critical | **12** | **P1** | Sprint 2 |
-| **R5** | No CSP → XSS amplified, data exfiltration | Medium | High | **12** | **P1** | Sprint 2 |
-| **R6** | No security headers → clickjacking, MIME sniffing | Medium | Medium | **9** | **P2** | Sprint 3 |
-| **R7** | No alerting on security events | Medium | High | **12** | **P1** | Sprint 2 |
+| **R3** | Regex injection → NoSQL injection / ReDoS | Medium | High | **12** | **P1** | ✅ DONE (Sprint 2) |
+| **R4** | JWT_SECRET never rotated → long-term compromise | Low | Critical | **12** | **P1** | Sprint 3 |
+| **R5** | No CSP → XSS amplified, data exfiltration | Medium | High | **12** | **P1** | ✅ DONE (Sprint 2) |
+| **R6** | No security headers → clickjacking, MIME sniffing | Medium | Medium | **9** | **P2** | ✅ DONE (Sprint 2 - Helmet.js) |
+| **R7** | No alerting on security events | Medium | High | **12** | **P1** | ✅ DONE (Sprint 2) |
 | **R8** | No dependency scanning → supply chain attack | Low | High | **8** | **P2** | Sprint 3 |
 | **R9** | No MFA for Admin → credential theft = full access | Medium | Critical | **16** | **P0** | ✅ DONE |
 | **R10** | File upload validation bypass → RCE | Low | Critical | **10** | **P2** | Sprint 3 |
@@ -485,13 +485,15 @@ if (search) {
 - [x] **R2**: Add global rate limiting (e.g., 100 req/15min/IP)
 - [x] **R9**: Implement TOTP MFA for Admin role
 
-#### Sprint 2 (P1 - Within 2 weeks)
-- [ ] **R3**: Fix regex injection (use `$text` search or proper escaping)
-- [ ] **R4**: Implement JWT_SECRET rotation procedure
-- [ ] **R5**: Add Content Security Policy (start with report-only)
-- [ ] **R7**: Add security event alerting (failed logins, admin actions)
+#### Sprint 2 (P1 - Within 2 weeks) ✅ COMPLETED
+- [x] **R3**: Fix regex injection (use `$text` search or proper escaping)
+- [x] **R5**: Add Content Security Policy (start with report-only)
+- [x] **R7**: Add security event alerting (failed logins, admin actions)
+
+> **Note:** R4 (JWT_SECRET rotation) was deferred to Sprint 3 as it requires a coordinated deployment procedure (new secret generation, rolling deploy, session revocation) that is better handled as a standalone operational task.
 
 #### Sprint 3 (P2 - Within 1 month)
+- [ ] **R4**: Implement JWT_SECRET rotation procedure
 - [ ] **R6**: Add Helmet.js for security headers
 - [ ] **R8**: Add Dependabot + `npm audit` in CI
 - [ ] **R10**: Enhance file upload validation (content-type, magic bytes)

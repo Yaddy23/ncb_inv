@@ -274,7 +274,7 @@ const bulkImportBooks = async (req, res) => {
     res.status(statusCode).json({ message: error.message });
   } finally {
     if (file && file.path) {
-      fs.unlink(file.path, (err) => { if (err) console.error('Failed to delete uploaded file:', err); });
+      await fs.promises.unlink(file.path).catch(err => console.error('Failed to delete uploaded file:', err));
     }
   }
 };

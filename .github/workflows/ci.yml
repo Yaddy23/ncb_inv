@@ -1,0 +1,66 @@
+# CI Security & Quality Pipeline
+name: CI Security & Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday 2am UTC
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+      - name: Run npm audit
+        run: npm audit --audit-level=high --if-present
+      - name: Check for vulnerabilities
+        run: |
+          if npm audit --audit-level=high --json 2>/dev/null | jq -e '.metadata.vulnerabilities.high > 0 or .metadata.vulnerabilities.critical > 0' >/dev/null; then
+            echo "High/critical vulnerabilities found!"
+            exit 1
+          fi
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - name: Run npm audit
+        run: npm audit --audit-level=high --if-present
+      - name: Check for vulnerabilities
+        run: |
+          if npm audit --audit-level=high --json 2>/dev/null | jq -e '.metadata.vulnerabilities.high > 0 or .metadata.vulnerabilities.critical > 0' >/dev/null; then
+            echo "High/critical vulnerabilities found!"
+            exit 1
+          fi
+
+  dependabot:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Auto-merge Dependabot PRs
+        uses: fastify/github-action-merge-dependabot@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          merge-type: squash

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, admin } = require('../middleware/auth');
-const upload = require('../utils/fileUpload');
+const { upload, validateFileContent } = require('../utils/fileUpload');
 const {
   updateStock,
   bulkImportBooks,
@@ -20,7 +20,7 @@ router.get('/summary', protect, getStockSummary);
 router.get('/recent', protect, getRecentTransactions);
 
 // Bulk import and export (admin only)
-router.post('/bulk-import', protect, admin, upload.single('file'), bulkImportBooks);
+router.post('/bulk-import', protect, admin, upload.single('file'), validateFileContent, bulkImportBooks);
 router.get('/export', protect, admin, exportBooks);
 
 // Transaction log routes (admin only)

@@ -23,6 +23,7 @@ const {
   mfaVerify,
   mfaDisable,
   mfaChallenge,
+  rotateJwtSecret,
 } = require('../controllers/authController');
 
 // Login rate limiter: 10 attempts per 15 minutes per IP (disabled in test environment)
@@ -87,5 +88,8 @@ router.put('/users/:id/password', protect, admin, adminResetUserPassword);
 router.delete('/users/:id', protect, admin, deleteUser);
 router.delete('/users/:id/sessions', protect, admin, revokeUserSessions);
 router.get('/admin/sessions', protect, admin, getAllSessions);
+
+// Admin only routes - Security
+router.post('/admin/rotate-jwt-secret', protect, admin, rotateJwtSecret);
 
 module.exports = router;

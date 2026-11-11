@@ -52,11 +52,14 @@ if (process.env.NODE_ENV !== 'test') {
     legacyHeaders: false,
     message: { message: 'Too many requests from this IP. Try again in 15 minutes.' },
     skip: (req) => {
-      // Skip rate limiting for book scanning/import endpoints
+      // Skip rate limiting for book scanning/import endpoints and auth endpoints (which have their own limiters)
       const scanningPaths = [
         '/api/books/lookup',
         '/api/books/catalog',
         '/api/stock/bulk-import',
+        '/api/auth/login',      // Has its own loginLimiter (10/15min)
+        '/api/auth/refresh',    // Has its own refreshLimiter (30/15min)
+        '/api/auth/register',   // Has its own registerLimiter (5/15min)
       ];
       // Also skip POST /api/books (create) and PUT /api/books/:isbn (update qty)
       const isBookWrite = req.method === 'POST' && req.path === '/api/books';
@@ -78,6 +81,8 @@ if (!fs.existsSync(uploadsDir)) {
 // Middleware
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  // Production frontend URL - fallback in case CLIENT_URL env var is not set
+  'https://ncb-inventory.onrender.com',
   'http://localhost:3000',
   'http://localhost:5173'
 ].filter(Boolean);

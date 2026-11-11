@@ -63,7 +63,26 @@ const getBooks = async (req, res) => {
     }
 
     if (search) {
-      query.$text = { $search: search };
+      const trimmedSearch = search.trim();
+      // Normalize ISBN: remove hyphens and spaces for matching
+      const normalizedSearch = trimmedSearch.replace(/[-\s]/g, '');
+
+      // Check if search looks like an ISBN (10 or 13 digits, optionally with hyphens)
+      const isIsbnLike = /^[\d\-]{10,17}$/.test(trimmedSearch) && /^\d{10,13}$/.test(normalizedSearch);
+
+      if (isIsbnLike) {
+        // For ISBN searches, match both normalized and original formats
+        // Use $expr to normalize stored ISBN (remove hyphens) for comparison
+        // This handles cases where DB has "978-1-234-56789-0" and search is "9781234567890" (or vice versa)
+        query.$or = [
+          { ISBN: trimmedSearch },           // Exact match on original search
+          { ISBN: normalizedSearch },        // Exact match on normalized search
+          { $expr: { $eq: [{ $replaceAll: { input: '$ISBN', find: '-', replacement: '' } }, normalizedSearch] } } // Match normalized DB ISBN
+        ];
+      } else {
+        // For general text searches, use MongoDB text search
+        query.$text = { $search: trimmedSearch };
+      }
     }
 
     if (subject) query.SUBJECT = { $eq: subject, $options: 'i' };
@@ -115,7 +134,18 @@ const getBooks = async (req, res) => {
 const lookupBookByISBN = async (req, res) => {
   try {
     const { isbn } = req.params;
-    let book = await Book.findOne({ ISBN: isbn, isArchived: { $ne: true } });
+    // Normalize ISBN: remove hyphens and spaces for matching
+    const normalizedIsbn = isbn.replace(/[-\s]/g, '');
+
+    // Try exact match first, then match normalized ISBN in DB
+    let book = await Book.findOne({
+      $or: [
+        { ISBN: isbn },
+        { ISBN: normalizedIsbn },
+        { $expr: { $eq: [{ $replaceAll: { input: '$ISBN', find: '-', replacement: '' } }, normalizedIsbn] } }
+      ],
+      isArchived: { $ne: true }
+    });
 
     if (book) {
       res.json(book);

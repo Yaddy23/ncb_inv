@@ -952,6 +952,35 @@ const updateUser = async (req, res) => {
   }
 };
 
+// @desc    Rotate JWT secret and revoke all sessions (Admin only)
+// @route   POST /api/auth/admin/rotate-jwt-secret
+// @access  Private/Admin
+const rotateJwtSecret = async (req, res) => {
+  try {
+    const newSecret = crypto.randomBytes(32).toString('hex');
+
+    // Revoke all sessions across all users
+    const result = await User.updateMany(
+      {},
+      { $set: { sessions: [] }, $unset: { refreshToken: "", refreshTokenExpires: "" } }
+    );
+
+    // Update env for current process (new tokens will use new secret)
+    process.env.JWT_SECRET = newSecret;
+
+    // Log security event
+    await logUserActivity(req.user._id, 'SECURITY_ALERT_SUSPICIOUS_ACTIVITY',
+      `JWT secret rotated by admin. ${result.modifiedCount} sessions revoked.`, req);
+
+    res.json({
+      message: `JWT secret rotated successfully. ${result.modifiedCount} sessions revoked.`,
+      warning: 'Update JWT_SECRET in Render dashboard and redeploy all services!'
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // @desc    Delete user (Admin only)
 // @route   DELETE /api/auth/users/:id
 // @access  Private/Admin
@@ -1005,4 +1034,5 @@ module.exports = {
   mfaVerify,
   mfaDisable,
   mfaChallenge,
+  rotateJwtSecret,
 };

@@ -139,4 +139,50 @@ describe('Book search - regex injection protection', () => {
     // But it should NOT throw an error or match unintended books
     // The key test is it doesn't crash or expose injection
   });
+
+  // ISBN search tests
+  test('should find book by exact 10-digit ISBN', async () => {
+    const res = await getBooksWithSearch('1234567890').expect(200);
+    expect(res.body.books.length).toBe(1);
+    expect(res.body.books[0].ISBN).toBe('1234567890');
+  });
+
+  test('should find book by 10-digit ISBN with hyphens', async () => {
+    // Search with hyphens - should match normalized ISBN
+    const res = await getBooksWithSearch('123-456-789-0').expect(200);
+    expect(res.body.books.length).toBe(1);
+    expect(res.body.books[0].ISBN).toBe('1234567890');
+  });
+
+  test('should find book by 13-digit ISBN', async () => {
+    // Add a book with 13-digit ISBN
+    await Book.create({
+      ISBN: '9781234567890',
+      TITLE: 'Test Book 13',
+      AUTHOR: 'Test Author',
+      SUBJECT: 'Test',
+      PUBLISHER: 'Test Pub',
+      PRICE: 20,
+      QTY: 3
+    });
+
+    const res = await getBooksWithSearch('9781234567890').expect(200);
+    expect(res.body.books.length).toBe(1);
+    expect(res.body.books[0].ISBN).toBe('9781234567890');
+  });
+
+  test('should find book by 13-digit ISBN with hyphens', async () => {
+    // The book was added in previous test
+    const res = await getBooksWithSearch('978-1-234-56789-0').expect(200);
+    expect(res.body.books.length).toBe(1);
+    expect(res.body.books[0].ISBN).toBe('9781234567890');
+  });
+
+  test('should not match partial ISBN (uses exact match, not text search)', async () => {
+    // Partial ISBN should not match because we use exact match for ISBN searches
+    const res = await getBooksWithSearch('123456').expect(200);
+    // "123456" is 6 digits - not ISBN-like (needs 10-13 digits), so uses $text search
+    // Since no book has "123456" in title/author/etc, should return 0
+    expect(res.body.books.length).toBe(0);
+  });
 });
