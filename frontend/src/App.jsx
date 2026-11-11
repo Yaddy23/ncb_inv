@@ -94,16 +94,20 @@ function App() {
 
   const isAdmin = user?.role === 'Admin';
 
+  // Wrapper component to check maintenance mode for routes (except login)
+  const MaintenanceGuard = ({ children }) => {
+    if (maintenanceMode && !isAdmin) {
+      return <Maintenance />;
+    }
+    return children;
+  };
+
   return (
     <ToastProvider>
       <OnlineProvider>
         <ThemeProvider>
           <Router>
-            {/* Show maintenance page for non-admin users when maintenance mode is on */}
-            {maintenanceMode && !isAdmin ? (
-              <Maintenance />
-            ) : (
-              <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
+          <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
             {/* Mobile Top Bar */}
           {user && isMobile && (
             <header className="fixed top-0 left-0 right-0 topbar-height pt-safe bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 shadow-sm z-40 flex items-center px-4">
@@ -155,6 +159,7 @@ function App() {
           >
             <OnlineBanner />
             <Routes>
+              {/* Login route - always accessible, even during maintenance */}
               <Route
                 path="/login"
                 element={
@@ -165,91 +170,117 @@ function App() {
                     : <Login onLogin={login} />
                 }
               />
+              {/* All other routes - wrapped with maintenance guard */}
               <Route
                 path="/"
                 element={
-                  <PrivateRoute isAuthenticated={!!user}>
-                    <Dashboard user={user} />
-                  </PrivateRoute>
+                  <MaintenanceGuard>
+                    <PrivateRoute isAuthenticated={!!user}>
+                      <Dashboard user={user} />
+                    </PrivateRoute>
+                  </MaintenanceGuard>
                 }
               />
               <Route
                 path="/books"
                 element={
-                  <PrivateRoute isAuthenticated={!!user}>
-                    <Books user={user} />
-                  </PrivateRoute>
+                  <MaintenanceGuard>
+                    <PrivateRoute isAuthenticated={!!user}>
+                      <Books user={user} />
+                    </PrivateRoute>
+                  </MaintenanceGuard>
                 }
               />
               <Route
                 path="/scan"
                 element={
-                  <PrivateRoute isAuthenticated={!!user}>
-                    <Scan user={user} />
-                  </PrivateRoute>
+                  <MaintenanceGuard>
+                    <PrivateRoute isAuthenticated={!!user}>
+                      <Scan user={user} />
+                    </PrivateRoute>
+                  </MaintenanceGuard>
                 }
               />
               <Route
                 path="/import-export"
                 element={
-                  <PrivateRoute isAuthenticated={!!user && user.role === 'Admin'}>
-                    <ImportExport user={user} />
-                  </PrivateRoute>
+                  <MaintenanceGuard>
+                    <PrivateRoute isAuthenticated={!!user && user.role === 'Admin'}>
+                      <ImportExport user={user} />
+                    </PrivateRoute>
+                  </MaintenanceGuard>
                 }
               />
               <Route
                 path="/profile"
                 element={
-                  <PrivateRoute isAuthenticated={!!user}>
-                    <Profile user={user} onLogin={login} onLogout={logout} />
-                  </PrivateRoute>
+                  <MaintenanceGuard>
+                    <PrivateRoute isAuthenticated={!!user}>
+                      <Profile user={user} onLogin={login} onLogout={logout} />
+                    </PrivateRoute>
+                  </MaintenanceGuard>
                 }
               />
               <Route
                 path="/admin"
                 element={
-                  <PrivateRoute isAuthenticated={!!user && user.role === 'Admin'}>
-                    <AdminPanel user={user} />
-                  </PrivateRoute>
+                  <MaintenanceGuard>
+                    <PrivateRoute isAuthenticated={!!user && user.role === 'Admin'}>
+                      <AdminPanel user={user} />
+                    </PrivateRoute>
+                  </MaintenanceGuard>
                 }
               />
               <Route
                 path="/delivery-receipts"
                 element={
-                  <PrivateRoute isAuthenticated={!!user}>
-                    <DeliveryReceipts user={user} />
-                  </PrivateRoute>
+                  <MaintenanceGuard>
+                    <PrivateRoute isAuthenticated={!!user}>
+                      <DeliveryReceipts user={user} />
+                    </PrivateRoute>
+                  </MaintenanceGuard>
                 }
               />
               <Route
                 path="/sales-invoices"
                 element={
-                  <PrivateRoute isAuthenticated={!!user}>
-                    <SalesInvoices user={user} />
-                  </PrivateRoute>
+                  <MaintenanceGuard>
+                    <PrivateRoute isAuthenticated={!!user}>
+                      <SalesInvoices user={user} />
+                    </PrivateRoute>
+                  </MaintenanceGuard>
                 }
               />
               <Route
                 path="/reservations"
                 element={
-                  <PrivateRoute isAuthenticated={!!user && user.role === 'Admin'}>
-                    <Reservations user={user} />
-                  </PrivateRoute>
+                  <MaintenanceGuard>
+                    <PrivateRoute isAuthenticated={!!user && user.role === 'Admin'}>
+                      <Reservations user={user} />
+                    </PrivateRoute>
+                  </MaintenanceGuard>
                 }
               />
               <Route
                 path="/evaluation-forms"
                 element={
-                  <PrivateRoute isAuthenticated={!!user}>
-                    <EvaluationForms user={user} />
-                  </PrivateRoute>
+                  <MaintenanceGuard>
+                    <PrivateRoute isAuthenticated={!!user}>
+                      <EvaluationForms user={user} />
+                    </PrivateRoute>
+                  </MaintenanceGuard>
                 }
               />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              {/* Catch-all for any other routes during maintenance */}
+              <Route
+                path="*"
+                element={
+                  maintenanceMode && !isAdmin ? <Maintenance /> : <Navigate to="/" replace />
+                }
+              />
             </Routes>
           </main>
         </div>
-        )}
         </Router>
         </ThemeProvider>
       </OnlineProvider>
