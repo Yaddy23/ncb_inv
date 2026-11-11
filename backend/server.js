@@ -42,35 +42,6 @@ app.use(helmet({
   frameguard: { action: 'deny' }
 }));
 
-// Global rate limiter: 100 requests per 15 minutes per IP (skip in test environment)
-// Skip book scanning endpoints to allow burst scanning (10+ books in seconds for box counting)
-if (process.env.NODE_ENV !== 'test') {
-  const globalLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 100,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    message: { message: 'Too many requests from this IP. Try again in 15 minutes.' },
-    skip: (req) => {
-      // Skip rate limiting for book scanning/import endpoints and auth endpoints (which have their own limiters)
-      const scanningPaths = [
-        '/api/books/lookup',
-        '/api/books/catalog',
-        '/api/stock/bulk-import',
-        '/api/auth/login',      // Has its own loginLimiter (10/15min)
-        '/api/auth/refresh',    // Has its own refreshLimiter (30/15min)
-        '/api/auth/register',   // Has its own registerLimiter (5/15min)
-      ];
-      // Also skip POST /api/books (create) and PUT /api/books/:isbn (update qty)
-      const isBookWrite = req.method === 'POST' && req.path === '/api/books';
-      const isBookUpdate = req.method === 'PUT' && req.path.match(/^\/api\/books\/[^/]+$/);
-
-      return scanningPaths.some(p => req.path.startsWith(p)) || isBookWrite || isBookUpdate;
-    }
-  });
-  app.use(globalLimiter);
-}
-
 // Ensure uploads directory exists (required for Multer on Render's ephemeral filesystem)
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -105,6 +76,36 @@ app.use(cors({
   },
   credentials: true
 }));
+
+// Global rate limiter: 100 requests per 15 minutes per IP (skip in test environment)
+// Skip book scanning endpoints to allow burst scanning (10+ books in seconds for box counting)
+// Applied AFTER cors middleware so rate limit responses include CORS headers
+if (process.env.NODE_ENV !== 'test') {
+  const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 100,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { message: 'Too many requests from this IP. Try again in 15 minutes.' },
+    skip: (req) => {
+      // Skip rate limiting for book scanning/import endpoints and auth endpoints (which have their own limiters)
+      const scanningPaths = [
+        '/api/books/lookup',
+        '/api/books/catalog',
+        '/api/stock/bulk-import',
+        '/api/auth/login',      // Has its own loginLimiter (10/15min)
+        '/api/auth/refresh',    // Has its own refreshLimiter (30/15min)
+        '/api/auth/register',   // Has its own registerLimiter (5/15min)
+      ];
+      // Also skip POST /api/books (create) and PUT /api/books/:isbn (update qty)
+      const isBookWrite = req.method === 'POST' && req.path === '/api/books';
+      const isBookUpdate = req.method === 'PUT' && req.path.match(/^\/api\/books\/[^/]+$/);
+
+      return scanningPaths.some(p => req.path.startsWith(p)) || isBookWrite || isBookUpdate;
+    }
+  });
+  app.use(globalLimiter);
+}
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

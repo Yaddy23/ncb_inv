@@ -89,6 +89,8 @@ const Books = ({ user }) => {
       } else {
         setLoading(true);
       }
+      // Clear error on new fetch attempt
+      setError(null);
       const params = { page, limit, search: debouncedSearch, sortBy, sortOrder };
       if (debouncedFilters.subject) params.subject = debouncedFilters.subject;
       if (debouncedFilters.publisher) params.publisher = debouncedFilters.publisher;
@@ -322,16 +324,13 @@ const Books = ({ user }) => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-6">
-        <AlertBanner tone="error">{error}</AlertBanner>
-      </div>
-    );
-  }
-
   return (
     <div className="p-6">
+      {error && (
+        <AlertBanner tone="error" className="mb-6" onClose={() => setError(null)}>
+          {error}
+        </AlertBanner>
+      )}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center space-x-3 dark:text-slate-100">
           <ShoppingBag className="w-5 h-5 text-primary dark:text-blue-400" />
