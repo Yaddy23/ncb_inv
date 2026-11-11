@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { saveCurrentToken } from '../lib/offlineQueue';
 import { useToast } from '../components/Toast';
-import { LogIn, User, Lock, Shield, ArrowLeft } from 'lucide-react';
+import { LogIn, User, Lock, Shield } from 'lucide-react';
 
 const Login = ({ onLogin }) => {
   const [formData, setFormData] = useState({
@@ -105,7 +105,7 @@ const Login = ({ onLogin }) => {
               onClick={goBackToLogin}
               className="p-2 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <img src="/favicon.png" alt="Back" className="w-5 h-5" />
             </button>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-slate-100 flex-1 text-center">MFA Challenge</h2>
             <div className="w-10" />
