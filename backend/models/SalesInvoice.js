@@ -39,4 +39,7 @@ salesInvoiceSchema.pre('save', function(next) {
   next();
 });
 
+// Text index for regex-injection-safe search on siNumber and customerName
+salesInvoiceSchema.index({ siNumber: 'text', customerName: 'text' });
+
 module.exports = mongoose.model('SalesInvoice', salesInvoiceSchema);

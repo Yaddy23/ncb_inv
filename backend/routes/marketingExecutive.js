@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
     const query = {};
 
     if (search) {
-      query.name = { $regex: search, $options: 'i' };
+      query.$text = { $search: search };
     }
     if (isActive !== undefined) {
       query.isActive = isActive === 'true';

@@ -36,4 +36,7 @@ const stockTransactionSchema = new mongoose.Schema({
 stockTransactionSchema.index({ ISBN: 1, timestamp: -1 });
 stockTransactionSchema.index({ performedBy: 1 });
 
+// Text index for regex-injection-safe search on ISBN
+stockTransactionSchema.index({ ISBN: 'text' });
+
 module.exports = mongoose.model('StockTransaction', stockTransactionSchema);

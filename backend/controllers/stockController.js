@@ -471,21 +471,10 @@ const getTransactions = async (req, res) => {
       if (endDate) query.createdAt.$lte = new Date(endDate);
     }
 
-    // Search in ISBN or user name/email - fold into the Mongo query before pagination
+    // Search in ISBN or user name/email using $text search (regex-injection safe)
+    // Uses text indexes on StockTransaction.ISBN and User.username/email
     if (search) {
-      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const searchRegex = new RegExp(escapedSearch, 'i');
-
-      // Find users matching the search by username or email
-      const matchingUsers = await User.find({
-        $or: [{ username: searchRegex }, { email: searchRegex }]
-      }).select('_id');
-
-      const orConditions = [{ ISBN: searchRegex }];
-      if (matchingUsers.length > 0) {
-        orConditions.push({ performedBy: { $in: matchingUsers.map(u => u._id) } });
-      }
-      query.$or = orConditions;
+      query.$text = { $search: search };
     }
 
     const transactions = await StockTransaction.find(query)

@@ -71,10 +71,7 @@ router.get('/', async (req, res) => {
     const query = {};
 
     if (search) {
-      query.$or = [
-        { efNumber: { $regex: search, $options: 'i' } },
-        { customerName: { $regex: search, $options: 'i' } }
-      ];
+      query.$text = { $search: search };
     }
     if (status) query.status = status;
 

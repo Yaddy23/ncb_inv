@@ -63,18 +63,12 @@ const getBooks = async (req, res) => {
     }
 
     if (search) {
-      query.$or = [
-        { TITLE: { $regex: search, $options: 'i' } },
-        { AUTHOR: { $regex: search, $options: 'i' } },
-        { ISBN: { $regex: search, $options: 'i' } },
-        { SUBJECT: { $regex: search, $options: 'i' } },
-        { PUBLISHER: { $regex: search, $options: 'i' } },
-      ];
+      query.$text = { $search: search };
     }
 
-    if (subject) query.SUBJECT = { $regex: subject, $options: 'i' };
-    if (publisher) query.PUBLISHER = { $regex: publisher, $options: 'i' };
-    if (year) query.YEAR = { $regex: year, $options: 'i' };
+    if (subject) query.SUBJECT = { $eq: subject, $options: 'i' };
+    if (publisher) query.PUBLISHER = { $eq: publisher, $options: 'i' };
+    if (year) query.YEAR = { $eq: year, $options: 'i' };
 
     const min = parseFloat(minPrice);
     const max = parseFloat(maxPrice);

@@ -859,10 +859,7 @@ const getAllUsers = async (req, res) => {
     // Build query
     const query = {};
     if (search) {
-      query.$or = [
-        { username: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
-      ];
+      query.$text = { $search: search };
     }
 
     // Don't allow users to delete themselves

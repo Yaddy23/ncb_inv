@@ -19,4 +19,7 @@ const marketingExecutiveSchema = new mongoose.Schema({
 marketingExecutiveSchema.index({ name: 1 });
 marketingExecutiveSchema.index({ isActive: 1 });
 
+// Text index for regex-injection-safe search on name
+marketingExecutiveSchema.index({ name: 'text' });
+
 module.exports = mongoose.model('MarketingExecutive', marketingExecutiveSchema);

@@ -18,15 +18,15 @@ This document provides a comprehensive security review of the **NCB Inventory Ma
 - **Authorization:** Role-based (Admin / Staff)
 - **Deployment:** Render (web services, PostgreSQL, cron jobs)
 
-### Key Findings
+### Key Findings (Post-Sprint 1)
 | Area | Rating | Notes |
 |------|--------|-------|
-| Authentication | ✅ Strong | Short-lived access tokens (15m), refresh token rotation, account lockout, session management |
+| Authentication | ✅ Strong | Short-lived access tokens (15m), refresh token rotation, account lockout, session management, **MFA (Admin)** |
 | Authorization | ✅ Strong | RBAC enforced at route and controller level; admin-only routes protected |
 | Input Validation | ⚠️ Moderate | Some controllers validate, but not centralized; MongoDB injection risk in regex searches |
 | Data Protection | ✅ Good | bcryptjs (10 rounds), SHA-256 for refresh tokens, no sensitive data in logs |
-| API Security | ⚠️ Moderate | Rate limiting on login only; missing global rate limiting, security headers |
-| Frontend Security | ⚠️ Moderate | Tokens in localStorage (XSS risk), CSP not configured, no X-Frame-Options |
+| API Security | ⚠️ Moderate | **Global rate limiting added (100/15m)**; security headers still missing |
+| Frontend Security | ⚠️ Moderate | **Tokens moved to httpOnly cookies (XSS mitigated)**; CSP not configured, no X-Frame-Options |
 | Logging/Audit | ✅ Good | Comprehensive UserLog model tracks all sensitive actions with IP/User-Agent |
 | Infrastructure | ✅ Good | Render managed services, env vars for secrets, separate test DB |
 
@@ -38,10 +38,11 @@ This document provides a comprehensive security review of the **NCB Inventory Ma
 ┌─────────────────────────────────────────────────────────────────┐
 │                        CLIENT (Browser)                         │
 │  React SPA + Vite + PWA (Service Worker)                       │
-│  - localStorage: accessToken, refreshToken, user               │
+│  - localStorage: user info only (no tokens)                    │
+│  - Cookies (httpOnly): accessToken, refreshToken, csrfToken    │
 │  - IndexedDB: token mirror for offline queue                   │
 └──────────────────────────┬──────────────────────────────────────┘
-                           │ HTTPS (CORS restricted)
+                           │ HTTPS (CORS restricted, credentials: include)
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                     RENDER WEB SERVICE                          │
@@ -49,6 +50,8 @@ This document provides a comprehensive security review of the **NCB Inventory Ma
 │  - CORS: allowlist + dev localhost                             │
 │  - Body parsing: 10MB limit                                    │
 │  - Health check: /health                                       │
+│  - Cookies: httpOnly, Secure, SameSite=Strict (prod)           │
+│  - CSRF: double-submit cookie pattern                          │
 └──────────────────────────┬──────────────────────────────────────┘
                            │
          ┌─────────────────┼─────────────────┐
@@ -66,15 +69,16 @@ This document provides a comprehensive security review of the **NCB Inventory Ma
 |-----------|------------|---------|
 | Auth | JWT (HS256), bcryptjs, crypto | Authentication & session management |
 | Database | MongoDB + Mongoose | Data persistence |
-| Rate Limiting | express-rate-limit | Login brute-force protection |
+| Rate Limiting | express-rate-limit | Global (100/15m) + login brute-force protection |
 | File Upload | multer | Excel/CSV import |
 | Logging | Custom UserLog model | Audit trail |
+| CSRF | Double-submit cookie pattern | Cross-site request forgery protection |
 
 ---
 
 ## 3. Authentication & Authorization
 
-### 3.1 Token Architecture
+### 3.1 Token Architecture (Post-Sprint 1: Cookie-Based)
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -84,24 +88,28 @@ This document provides a comprehensive security review of the **NCB Inventory Ma
 │  LOGIN                                                         │
 │     │                                                          │
 │     ▼                                                          │
-│  ┌─────────────┐    ┌─────────────────┐                       │
-│  │ Access Token│    │ Refresh Token   │                       │
-│  │ (JWT, 15m)  │    │ (opaque, 7d)    │                       │
-│  │ HS256       │    │ SHA-256 hashed  │                       │
-│  │ {id}        │    │ Stored in User  │                       │
-│  └─────────────┘    │ sessions[] array│                       │
-│       │             └────────┬────────┘                       │
-│       │                      │                                │
-│       ▼                      ▼                                │
-│  localStorage          localStorage + User.sessions[]         │
-│  (client)              (server - for revocation)              │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  HTTP-ONLY COOKIES (Set by backend)                        │ │
+│  │  • accessToken:  JWT, 15m, HttpOnly, Secure, SameSite=Strict│
+│  │  • refreshToken: opaque, 7d, HttpOnly, Secure, SameSite=Strict│
+│  │  • csrfToken:    HttpOnly, Secure, SameSite=Strict         │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│       │                                                          │
+│       ▼                                                          │
+│  Cookies sent automatically with requests                        │
+│  (SameSite=Strict prevents CSRF on cross-origin)                │
+│       │                                                          │
+│       ▼                                                          │
+│  REFRESH FLOW (auto via axios interceptor)                      │
+│  1. 401 on API call                                             │
+│  2. POST /auth/refresh (cookies sent automatically)             │
+│  3. Server: verify hash, check expiry, rotate token            │
+│  4. New cookies set (access + refresh + csrf)                  │
+│  5. Old refresh token revoked (rotation)                        │
 │                                                                │
-│  REFRESH FLOW (auto via axios interceptor)                    │
-│  1. 401 on API call                                          │
-│  2. POST /auth/refresh with refreshToken                     │
-│  3. Server: verify hash, check expiry, rotate token          │
-│  4. New access + refresh tokens issued                       │
-│  5. Old refresh token revoked (rotation)                     │
+│  OFFLINE QUEUE                                                 │
+│  • Service Worker caches accessToken in IndexedDB              │
+│  • Drained on reconnect via /auth/refresh                      │
 │                                                                │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -119,6 +127,10 @@ This document provides a comprehensive security review of the **NCB Inventory Ma
 | **Admin session oversight** | Admin can view/revoke any user's sessions |
 | **Secure logout** | Revokes current session; all-sessions option |
 | **Generic error messages** | No user enumeration on login |
+| **Admin MFA (TOTP)** | **NEW** - RFC 6238 TOTP with otplib, QR code setup |
+| **httpOnly Cookie Auth** | **NEW** - Tokens in cookies, not localStorage (XSS safe) |
+| **CSRF Protection** | **NEW** - Double-submit cookie pattern |
+| **Global Rate Limiting** | **NEW** - 100 req/15min/IP with scanning exemptions |
 
 ### 3.3 Authorization Model
 ```
@@ -142,10 +154,10 @@ Role Hierarchy:
 
 | Issue | Severity | Recommendation |
 |-------|----------|----------------|
-| No MFA/2FA | **High** | Implement TOTP (Google Authenticator, Authy) for Admin accounts at minimum |
+| No MFA/2FA | **High** | ✅ **DONE** - TOTP MFA implemented for Admin accounts |
 | No password history | Medium | Prevent last 5 passwords reuse |
 | No forced password rotation | Low | Consider 90-day rotation for Admin |
-| Refresh token in localStorage | **High** | Move to httpOnly cookie + CSRF token (see §6) |
+| Refresh token in localStorage | **High** | ✅ **DONE** - Moved to httpOnly cookies + CSRF protection |
 | No device fingerprinting | Medium | Add device trust scores for anomalous login detection |
 
 ---
@@ -220,7 +232,7 @@ Role Hierarchy:
 
 | # | Vulnerability | Location | Severity | Evidence |
 |---|--------------|----------|----------|----------|
-| **API-01** | **No global rate limiting** | All endpoints except login | **High** | DoS, credential stuffing on other endpoints |
+| **API-01** | **No global rate limiting** | All endpoints except login | **High** | ✅ **DONE** - Global rate limiting implemented (100 req/15min/IP) with scanning exemptions |
 | **API-02** | **Regex injection in search** | `bookController.js:65-73`, `stockController.js:475-488` | **High** | User input directly in `$regex` without escaping |
 | **API-03** | **No request validation middleware** | All controllers | Medium | Inconsistent validation; some trust req.body |
 | **API-04** | **Missing security headers** | Express app | Medium | No Helmet.js; no CSP, HSTS, X-Frame-Options |
@@ -256,7 +268,7 @@ if (search) {
 
 ## 6. Frontend Security
 
-### 6.1 Current Architecture
+### 6.1 Current Architecture (Post-Sprint 1)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -266,43 +278,51 @@ if (search) {
 │  LOGIN SUCCESS                                                   │
 │       │                                                         │
 │       ▼                                                         │
-│  ┌──────────────┐    ┌──────────────┐    ┌─────────────────┐   │
-│  │ localStorage │    │ localStorage │    │ IndexedDB       │   │
-│  │ accessToken  │    │ refreshToken │    │ (offlineQueue)  │   │
-│  │ (JWT, 15m)   │    │ (opaque, 7d) │    │ accessToken     │   │
-│  └──────────────┘    └──────────────┘    └─────────────────┘   │
-│       │                     │                    │               │
-│       ▼                     ▼                    ▼               │
-│  Axios interceptor    Axios interceptor    Service Worker     │
-│  reads for auth       reads for refresh    reads for offline   │
-│  header               calls              queue draining       │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │  HTTP-ONLY COOKIES (Set by backend)                        │ │
+│  │  • accessToken:  HttpOnly, Secure, SameSite=Strict, 15m   │ │
+│  │  • refreshToken: HttpOnly, Secure, SameSite=Strict, 7d    │ │
+│  │  • csrfToken:    HttpOnly, Secure, SameSite=Strict        │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│       │                                                         │
+│       ▼                                                         │
+│  API CALLS → Cookies sent automatically (SameSite=Strict       │
+│              prevents CSRF on cross-origin)                    │
+│       │                                                         │
+│       ▼                                                         │
+│  REFRESH → POST /auth/refresh (cookies sent)                   │
+│            → New cookies set (rotation)                        │
+│                                                                 │
+│  OFFLINE QUEUE → IndexedDB (accessToken mirror only)           │
+│                  Service Worker drains queue on reconnect      │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 6.2 Security Controls
+### 6.2 Security Controls (Post-Sprint 1)
 
 | Control | Status | Implementation |
 |---------|--------|----------------|
 | **HTTPS Only** | ✅ | Render enforces; `VITE_API_URL` uses HTTPS in prod |
-| **Secure Cookies** | ❌ | Tokens in localStorage (not httpOnly cookies) |
-| **CSP** | ❌ | Not configured |
-| **X-Frame-Options** | ❌ | Not set |
-| **X-Content-Type-Options** | ❌ | Not set |
-| **Referrer-Policy** | ❌ | Not set |
-| **Auto Token Refresh** | ✅ | Axios interceptor with queue |
-| **Logout Cleanup** | ✅ | Purges localStorage + IndexedDB |
+| **Secure Cookies** | ✅ | **DONE** - httpOnly cookies with Secure, SameSite=Strict |
+| **CSP** | ❌ | Not configured (Sprint 2) |
+| **X-Frame-Options** | ❌ | Not set (Sprint 3 - Helmet.js) |
+| **X-Content-Type-Options** | ❌ | Not set (Sprint 3 - Helmet.js) |
+| **Referrer-Policy** | ❌ | Not set (Sprint 3 - Helmet.js) |
+| **Auto Token Refresh** | ✅ | Axios interceptor with queue (cookies sent automatically) |
+| **Logout Cleanup** | ✅ | Clears cookies + IndexedDB |
 | **Route Guards** | ✅ | `PrivateRoute` + role checks |
 | **PWA Service Worker** | ✅ | Offline queue for scans |
+| **CSRF Protection** | ✅ | **DONE** - Double-submit cookie pattern (csrfToken cookie + X-CSRF-Token header) |
 
 ### 6.3 Vulnerabilities Identified
 
 | # | Vulnerability | Severity | Impact |
 |---|--------------|----------|--------|
-| **FE-01** | **Tokens in localStorage** | **Critical** | XSS → full account takeover; tokens accessible via `document.cookie` not possible but `localStorage` readable by any JS |
+| **FE-01** | **Tokens in localStorage** | **Critical** | ✅ **DONE** - Migrated to httpOnly cookies; XSS can no longer steal tokens |
 | **FE-02** | **No Content Security Policy** | **High** | XSS risk amplified; inline scripts/styles allowed |
 | **FE-03** | **No security headers** | Medium | Clickjacking, MIME sniffing, referrer leakage |
-| **FE-04** | **Refresh token in localStorage** | **High** | Same as FE-01; long-lived token (7d) |
+| **FE-04** | **Refresh token in localStorage** | **High** | ✅ **DONE** - Migrated to httpOnly cookies with CSRF protection |
 | **FE-05** | **AutoComplete on password** | Low | Browser password managers (actually good UX) |
 | **FE-06** | **No Subresource Integrity** | Low | CDN compromise risk |
 
@@ -417,10 +437,10 @@ if (search) {
 | Category | Status | Notes |
 |----------|--------|-------|
 | **A01: Broken Access Control** | ✅ Covered | RBAC enforced at route + controller |
-| **A02: Cryptographic Failures** | ⚠️ Partial | TLS ok; JWT secret rotation missing; localStorage tokens |
+| **A02: Cryptographic Failures** | ⚠️ Partial | TLS ok; JWT secret rotation missing; localStorage tokens → **DONE** (cookies) |
 | **A03: Injection** | ⚠️ Partial | NoSQL injection risk in regex searches |
 | **A04: Insecure Design** | ✅ Good | Auth design sound; session rotation implemented |
-| **A05: Security Misconfiguration** | ⚠️ Partial | Missing security headers, CSP, global rate limit |
+| **A05: Security Misconfiguration** | ⚠️ Partial | Missing security headers, CSP, global rate limit → **DONE** (rate limit) |
 | **A06: Vulnerable Components** | ⚠️ Unknown | No automated dependency scanning |
 | **A07: Auth Failures** | ✅ Strong | Lockout, rotation, generic errors, session mgmt |
 | **A08: Software/Data Integrity** | ⚠️ Partial | No CI/CD supply chain verification |
@@ -432,7 +452,7 @@ if (search) {
 | Function | Controls Present | Gaps |
 |----------|------------------|------|
 | **Identify** | Asset inventory (code), data classification | No formal risk assessment |
-| **Protect** | AuthN/AuthZ, encryption, training (implied) | MFA, CSP, headers, rate limiting |
+| **Protect** | AuthN/AuthZ, encryption, training (implied), **MFA (Admin)**, **Cookie-based auth**, **Global rate limiting** | CSP, security headers, rate limiting (partial) |
 | **Detect** | Audit logs, error logging | No SIEM, no alerting |
 | **Respond** | Session revocation, password reset | No incident response plan |
 | **Recover** | Atlas backups, Render redeploys | No tested DR plan, no backup verification |
@@ -445,25 +465,25 @@ if (search) {
 
 | Risk ID | Description | Likelihood | Impact | Risk Score | Priority |
 |---------|-------------|------------|--------|------------|----------|
-| **R1** | XSS steals localStorage tokens → full account takeover | High | Critical | **20** | **P0** |
-| **R2** | No global rate limiting → credential stuffing/DoS | High | High | **16** | **P0** |
-| **R3** | Regex injection → NoSQL injection / ReDoS | Medium | High | **12** | **P1** |
-| **R4** | JWT_SECRET never rotated → long-term compromise | Low | Critical | **12** | **P1** |
-| **R5** | No CSP → XSS amplified, data exfiltration | Medium | High | **12** | **P1** |
-| **R6** | No security headers → clickjacking, MIME sniffing | Medium | Medium | **9** | **P2** |
-| **R7** | No alerting on security events | Medium | High | **12** | **P1** |
-| **R8** | No dependency scanning → supply chain attack | Low | High | **8** | **P2** |
-| **R9** | No MFA for Admin → credential theft = full access | Medium | Critical | **16** | **P0** |
-| **R10** | File upload validation bypass → RCE | Low | Critical | **10** | **P2** |
+| **R1** | XSS steals localStorage tokens → full account takeover | High | Critical | **20** | **P0** | ✅ DONE |
+| **R2** | No global rate limiting → credential stuffing/DoS | High | High | **16** | **P0** | ✅ DONE |
+| **R3** | Regex injection → NoSQL injection / ReDoS | Medium | High | **12** | **P1** | Sprint 2 |
+| **R4** | JWT_SECRET never rotated → long-term compromise | Low | Critical | **12** | **P1** | Sprint 2 |
+| **R5** | No CSP → XSS amplified, data exfiltration | Medium | High | **12** | **P1** | Sprint 2 |
+| **R6** | No security headers → clickjacking, MIME sniffing | Medium | Medium | **9** | **P2** | Sprint 3 |
+| **R7** | No alerting on security events | Medium | High | **12** | **P1** | Sprint 2 |
+| **R8** | No dependency scanning → supply chain attack | Low | High | **8** | **P2** | Sprint 3 |
+| **R9** | No MFA for Admin → credential theft = full access | Medium | Critical | **16** | **P0** | ✅ DONE |
+| **R10** | File upload validation bypass → RCE | Low | Critical | **10** | **P2** | Sprint 3 |
 
 **Scoring:** Likelihood (Low=1, Medium=2, High=3) × Impact (Low=1, Medium=4, High=6, Critical=8)
 
 ### 10.2 Remediation Roadmap
 
-#### Sprint 1 (Immediate - P0)
-- [ ] **R1**: Migrate tokens to httpOnly cookies + CSRF protection
-- [ ] **R2**: Add global rate limiting (e.g., 100 req/15min/IP)
-- [ ] **R9**: Implement TOTP MFA for Admin role
+#### Sprint 1 (Immediate - P0) ✅ COMPLETED
+- [x] **R1**: Migrate tokens to httpOnly cookies + CSRF protection
+- [x] **R2**: Add global rate limiting (e.g., 100 req/15min/IP)
+- [x] **R9**: Implement TOTP MFA for Admin role
 
 #### Sprint 2 (P1 - Within 2 weeks)
 - [ ] **R3**: Fix regex injection (use `$text` search or proper escaping)

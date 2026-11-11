@@ -41,10 +41,7 @@ router.get('/dr', async (req, res) => {
     const query = {};
 
     if (search) {
-      query.$or = [
-        { drNumber: { $regex: search, $options: 'i' } },
-        { customerName: { $regex: search, $options: 'i' } }
-      ];
+      query.$text = { $search: search };
     }
     if (status) query.status = status;
     if (req.query.deliveryStatus) query.deliveryStatus = req.query.deliveryStatus;
@@ -753,10 +750,7 @@ router.get('/si', async (req, res) => {
     const query = {};
 
     if (search) {
-      query.$or = [
-        { siNumber: { $regex: search, $options: 'i' } },
-        { customerName: { $regex: search, $options: 'i' } }
-      ];
+      query.$text = { $search: search };
     }
     if (status) query.status = status;
     if (req.query.drRef) query.drRef = req.query.drRef;

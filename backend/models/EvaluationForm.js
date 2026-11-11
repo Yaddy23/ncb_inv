@@ -33,4 +33,7 @@ evaluationFormSchema.pre('save', function(next) {
   next();
 });
 
+// Text index for regex-injection-safe search on efNumber and customerName
+evaluationFormSchema.index({ efNumber: 'text', customerName: 'text' });
+
 module.exports = mongoose.model('EvaluationForm', evaluationFormSchema);

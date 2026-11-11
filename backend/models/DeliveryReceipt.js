@@ -39,4 +39,7 @@ deliveryReceiptSchema.pre('save', function(next) {
   next();
 });
 
+// Text index for regex-injection-safe search on drNumber and customerName
+deliveryReceiptSchema.index({ drNumber: 'text', customerName: 'text' });
+
 module.exports = mongoose.model('DeliveryReceipt', deliveryReceiptSchema);
