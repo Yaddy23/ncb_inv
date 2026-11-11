@@ -85,9 +85,12 @@ const getBooks = async (req, res) => {
       }
     }
 
-    if (subject) query.SUBJECT = { $eq: subject, $options: 'i' };
-    if (publisher) query.PUBLISHER = { $eq: publisher, $options: 'i' };
-    if (year) query.YEAR = { $eq: year, $options: 'i' };
+    // Escape special regex characters for safe exact matching
+    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    if (subject) query.SUBJECT = { $regex: `^${escapeRegex(subject)}$`, $options: 'i' };
+    if (publisher) query.PUBLISHER = { $regex: `^${escapeRegex(publisher)}$`, $options: 'i' };
+    if (year) query.YEAR = { $regex: `^${escapeRegex(year)}$`, $options: 'i' };
 
     const min = parseFloat(minPrice);
     const max = parseFloat(maxPrice);
