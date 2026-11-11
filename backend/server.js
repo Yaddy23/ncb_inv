@@ -116,6 +116,10 @@ app.use(cookieParser());
 const { ensureCsrfCookie } = require('./middleware/csrf');
 app.use(ensureCsrfCookie);
 
+// Maintenance mode check (applies to all non-auth routes)
+const { maintenanceCheck } = require('./middleware/maintenanceCheck');
+app.use(maintenanceCheck);
+
 // Routes
 const authRoutes = require('./routes/auth');
 const bookRoutes = require('./routes/books');
@@ -126,9 +130,11 @@ const efRoutes = require('./routes/ef');
 const marketingExecutiveRoutes = require('./routes/marketingExecutive');
 const customerRoutes = require('./routes/customers');
 const reservationRoutes = require('./routes/reservations');
+const maintenanceRoutes = require('./routes/maintenance');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
+app.use('/api/maintenance', maintenanceRoutes);
 // Reservations must be matched before the /api/stock prefix
 app.use('/api/stock/reservations', reservationRoutes);
 app.use('/api/stock', stockRoutes);

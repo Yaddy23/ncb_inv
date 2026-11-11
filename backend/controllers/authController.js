@@ -5,6 +5,7 @@ const UserLog = require('../models/UserLog');
 const { generateSecret, generateURI, verify } = require('otplib');
 const QRCode = require('qrcode');
 const { trackFailedLogin, alertMfaDisabled, alertNewAdminCreated } = require('../utils/securityAlerts');
+const { isMaintenanceMode, getMaintenanceInfo } = require('../middleware/maintenanceCheck');
 
 // Cookie options for httpOnly cookies
 // Use 'none' for cross-site (different domains on Render), 'lax' for same-site
@@ -130,6 +131,16 @@ const loginUser = async (req, res) => {
     // Check if account is active
     if (!user.isActive) {
       return res.status(403).json({ message: 'Account is deactivated. Contact an administrator.' });
+    }
+
+    // Check maintenance mode - block staff login during maintenance
+    const { maintenanceMode, message, estimatedEnd } = await getMaintenanceInfo();
+    if (maintenanceMode && user.role !== 'Admin') {
+      return res.status(503).json({
+        maintenanceMode: true,
+        message: message || 'System is under maintenance. Only administrators can log in at this time.',
+        estimatedEnd
+      });
     }
 
     const passwordOk = await user.comparePassword(password);

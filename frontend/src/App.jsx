@@ -16,6 +16,7 @@ import DeliveryReceipts from './pages/DeliveryReceipts';
 import SalesInvoices from './pages/SalesInvoices';
 import EvaluationForms from './pages/EvaluationForms';
 import Reservations from './pages/Reservations';
+import Maintenance from './pages/Maintenance';
 import NavBar from './components/NavBar';
 import PrivateRoute from './components/PrivateRoute';
 import { ToastProvider } from './components/Toast';
@@ -27,6 +28,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceInfo, setMaintenanceInfo] = useState(null);
   const isMobile = useIsMobile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -37,9 +40,23 @@ function App() {
     }
   }, [isMobile]);
 
+  // Check maintenance mode
+  const checkMaintenance = async () => {
+    try {
+      const response = await api.get('/maintenance/status');
+      setMaintenanceMode(response.data.maintenanceMode);
+      setMaintenanceInfo(response.data);
+    } catch (error) {
+      console.error('Failed to check maintenance status:', error);
+    }
+  };
+
   useEffect(() => {
     const loadUser = async () => {
       try {
+        // Check maintenance mode first
+        await checkMaintenance();
+
         const response = await api.get('/auth/me');
         setUser(response.data);
       } catch (error) {
@@ -50,6 +67,10 @@ function App() {
     };
 
     loadUser();
+
+    // Poll maintenance status every 30 seconds
+    const interval = setInterval(checkMaintenance, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const login = (userData) => {
@@ -69,6 +90,12 @@ function App() {
 
   if (loading) {
     return <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-slate-950 dark:text-slate-100">Loading...</div>;
+  }
+
+  // Show maintenance page if maintenance mode is on and user is not admin
+  const isAdmin = user?.role === 'Admin';
+  if (maintenanceMode && !isAdmin) {
+    return <Maintenance />;
   }
 
   return (
