@@ -5,12 +5,42 @@ const fs = require('fs');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 require('dotenv').config();
 
 const app = express();
 
 // Trust proxy for rate limiting behind Render proxy
 app.set('trust proxy', 1);
+
+// Security headers with Helmet - CSP in report-only mode initially
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", process.env.CLIENT_URL || "http://localhost:5173"],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+    reportOnly: process.env.NODE_ENV !== 'production' // Report-only in dev, enforce in production
+  },
+  crossOriginEmbedderPolicy: false, // Disable COEP as it can break some legitimate use cases
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  noSniff: true,
+  xssFilter: true,
+  frameguard: { action: 'deny' }
+}));
 
 // Global rate limiter: 100 requests per 15 minutes per IP (skip in test environment)
 // Skip book scanning endpoints to allow burst scanning (10+ books in seconds for box counting)

@@ -4,6 +4,7 @@ const User = require('../models/User');
 const UserLog = require('../models/UserLog');
 const { generateSecret, generateURI, verify } = require('otplib');
 const QRCode = require('qrcode');
+const { trackFailedLogin, alertMfaDisabled, alertNewAdminCreated } = require('../utils/securityAlerts');
 
 // Cookie options for httpOnly cookies
 // Use 'none' for cross-site (different domains on Render), 'lax' for same-site
@@ -112,6 +113,8 @@ const loginUser = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
+      // Track failed login for burst detection (even for non-existent users)
+      trackFailedLogin(req.ip, email);
       // Generic message to avoid user enumeration
       return res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -132,6 +135,9 @@ const loginUser = async (req, res) => {
     const passwordOk = await user.comparePassword(password);
 
     if (!passwordOk) {
+      // Track failed login for burst detection
+      trackFailedLogin(req.ip, email);
+
       // Increment failed attempts
       user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
 
@@ -327,6 +333,9 @@ const mfaDisable = async (req, res) => {
     // Log MFA disablement
     await logUserActivity(user._id, 'MFA_DISABLE', 'Multi-factor authentication disabled', req);
 
+    // Security alert: MFA disabled for admin
+    await alertMfaDisabled(user, req.user, req);
+
     res.json({ message: 'MFA disabled successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -460,6 +469,11 @@ const registerUser = async (req, res) => {
 
       // Log user creation
       await logUserActivity(req.user._id, 'CREATE_USER', `Created new user: ${username} (${role || 'Staff'})`, req);
+
+      // Security alert: New admin created
+      if (user.role === 'Admin') {
+        await alertNewAdminCreated(user, req.user, req);
+      }
 
       res.status(201).json({
         _id: user._id,
