@@ -293,6 +293,7 @@ const Books = ({ user }) => {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
               <thead className="bg-gray-50 dark:bg-slate-800/60">
                 <tr>
+                  {sortHeader('Subject', 'SUBJECT', 'w-[150px]')}
                   {sortHeader('ISBN', 'ISBN', 'w-[120px]')}
                   {sortHeader('Title', 'TITLE', 'w-[300px]')}
                   {sortHeader('Author', 'AUTHOR', 'w-[200px]')}
@@ -306,6 +307,7 @@ const Books = ({ user }) => {
               <tbody className="bg-white dark:bg-slate-900">
                 {[0, 1, 2, 3, 4].map((row) => (
                   <tr key={row}>
+                    <td className="px-6 py-4"><Skeleton className="h-4 w-3/4" /></td>
                     <td className="px-6 py-4"><Skeleton className="h-4 w-3/4" /></td>
                     <td className="px-6 py-4"><Skeleton className="h-4 w-3/4" /></td>
                     <td className="px-6 py-4"><Skeleton className="h-4 w-3/4" /></td>
@@ -626,6 +628,7 @@ const Books = ({ user }) => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 table-fixed">
             <thead className="bg-gray-50 dark:bg-slate-800/60">
               <tr>
+                {sortHeader('Subject', 'SUBJECT', 'w-[150px]')}
                 {sortHeader('ISBN', 'ISBN', 'w-[120px]')}
                 {sortHeader('Title', 'TITLE', 'w-[300px]', isSearching && <Loader className="w-4 h-4 text-primary dark:text-blue-400 animate-spin flex-shrink-0" />)}
                 {sortHeader('Author', 'AUTHOR', 'w-[200px]')}
@@ -638,10 +641,11 @@ const Books = ({ user }) => {
             </thead>
             <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
               {books.length === 0 ? (
-                <EmptyState colSpan={8} icon={ShoppingBag} title={showArchived ? 'No archived books' : 'No books found'} message={showArchived ? 'No books have been archived yet.' : 'Try searching or adding new books.'} />
+                <EmptyState colSpan={9} icon={ShoppingBag} title={showArchived ? 'No archived books' : 'No books found'} message={showArchived ? 'No books have been archived yet.' : 'Try searching or adding new books.'} />
               ) : (
                 books.map((book) => (
                   <tr key={book.ISBN} className="hover:bg-gray-50 dark:hover:bg-slate-800/60">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300 truncate max-w-[150px]">{book.SUBJECT || 'N/A'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 max-w-[120px] dark:text-slate-100">{book.ISBN}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300 truncate max-w-[300px]">{book.TITLE}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300 truncate max-w-[200px]">{book.AUTHOR || 'N/A'}</td>
