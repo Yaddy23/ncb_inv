@@ -14,7 +14,7 @@ export default defineConfig({
       includeAssets: ['favicon.png'],
       manifest: {
         name: 'Book Inventory Management System',
-        short_name: 'BookInventory',
+        short_name: 'NCB Inventory',
         description: 'Inventory management for NCB books - stock scanning, delivery receipts, sales invoices and evaluation forms',
         theme_color: '#2563eb',
         background_color: '#f9fafb',
