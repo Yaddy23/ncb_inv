@@ -45,7 +45,6 @@ services:
     name: ncb-inventory
     runtime: static
     plan: free
-    region: oregon
     repo: https://github.com/Yaddy23/ncb_inv
     branch: main
     rootDir: frontend
