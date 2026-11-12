@@ -29,6 +29,17 @@ const Login = ({ onLogin }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Client-side validation
+    if (!formData.email) {
+      toast.error('Email is required');
+      return;
+    }
+    if (!formData.password) {
+      toast.error('Password is required');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -198,7 +209,6 @@ const Login = ({ onLogin }) => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                required
                 className="w-full pl-11 pr-4 py-3 border border-gray-300 dark:border-slate-600 dark:placeholder-slate-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-blue-500 focus:border-transparent touch-manipulation min-h-[48px] text-base"
                 autoComplete="email"
               />
@@ -214,7 +224,6 @@ const Login = ({ onLogin }) => {
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                required
                 className="w-full pl-11 pr-4 py-3 border border-gray-300 dark:border-slate-600 dark:placeholder-slate-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-blue-500 focus:border-transparent touch-manipulation min-h-[48px] text-base"
                 autoComplete="current-password"
               />

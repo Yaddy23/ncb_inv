@@ -8,7 +8,19 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "playwright test",
-    "test:ui": "playwright test --ui"
+    "test:ui": "playwright test --ui",
+    "test:e2e": "playwright test --config=playwright.config.ts",
+    "test:e2e:ui": "playwright test --config=playwright.config.ts --ui",
+    "test:e2e:headed": "playwright test --config=playwright.config.ts --headed",
+    "test:e2e:debug": "playwright test --config=playwright.config.ts --debug",
+    "test:e2e:report": "playwright show-report test-results/html-report",
+    "test:e2e:chromium": "playwright test --config=playwright.config.ts --project=chromium",
+    "test:e2e:firefox": "playwright test --config=playwright.config.ts --project=firefox",
+    "test:e2e:webkit": "playwright test --config=playwright.config.ts --project=webkit",
+    "test:e2e:mobile": "playwright test --config=playwright.config.ts --project='Mobile Chrome' --project='Mobile Safari'",
+    "test:e2e:tablet": "playwright test --config=playwright.config.ts --project='Tablet Chrome'",
+    "test:install": "playwright install --with-deps chromium firefox webkit",
+    "test:clean": "rm -rf test-results .playwright-test"
   },
   "dependencies": {
     "axios": "^1.5.0",
@@ -33,7 +45,8 @@
     "postcss": "^8.4.29",
     "tailwindcss": "^3.3.3",
     "vite": "^4.4.5",
-    "vite-plugin-pwa": "^0.16.7"
+    "vite-plugin-pwa": "^0.16.7",
+    "@faker-js/faker": "^9.0.0"
   },
   "overrides": {
     "@babel/preset-env": "^7.29.7",

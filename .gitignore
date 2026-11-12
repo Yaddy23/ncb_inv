@@ -39,6 +39,11 @@ coverage/
 .nyc_output/
 .playwright-mcp/
 
+# Playwright
+test-results/
+playwright-report/
+.playwright-test/
+
 # Cache
 .cache/
 .eslintcache

@@ -55,8 +55,8 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     // If error is 401 and we haven't tried to refresh yet
-    // But don't attempt refresh for /auth/me - let the App component handle it
-    if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/me') {
+    // But don't attempt refresh for /auth/me or /auth/login - let the components handle them
+    if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/me' && originalRequest.url !== '/auth/login') {
       // If it's the refresh endpoint itself failing, don't try to refresh again
       if (originalRequest.url === '/auth/refresh') {
         purgeAuth();
@@ -108,8 +108,8 @@ api.interceptors.response.use(
     }
 
     // For other 401 errors (not during refresh attempt), redirect to login
-    // But don't redirect for /auth/me - let the App component handle it
-    if (error.response?.status === 401 && originalRequest.url !== '/auth/me') {
+    // But don't redirect for /auth/me or /auth/login - let the components handle them
+    if (error.response?.status === 401 && originalRequest.url !== '/auth/me' && originalRequest.url !== '/auth/login') {
       purgeAuth();
       window.location.href = '/login';
     }
