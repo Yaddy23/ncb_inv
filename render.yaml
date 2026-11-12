@@ -1,0 +1,89 @@
+# Render Blueprint for NCB Inventory Management System
+# This file defines all infrastructure as code for deploying to Render
+# Push changes to Git to automatically deploy via Blueprint sync
+
+services:
+  # Backend API - Node.js Web Service
+  - type: web
+    name: backend-ncb-inventory
+    runtime: node
+    plan: free
+    region: oregon
+    repo: https://github.com/Yaddy23/ncb_inv
+    branch: main
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8080"
+      - key: MONGODB_URI
+        sync: false
+        # Set in Dashboard: MongoDB Atlas connection string
+      - key: JWT_SECRET
+        sync: false
+        # Set in Dashboard: Generate with `openssl rand -base64 32`
+      - key: CLIENT_URL
+        value: https://ncb-inventory.onrender.com
+      - key: COOKIE_DOMAIN
+        value: .onrender.com
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAME_SITE
+        value: "none"
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "900000"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "100"
+
+  # Frontend - Static Site (React/Vite)
+  - type: static
+    name: ncb-inventory
+    plan: free
+    region: oregon
+    repo: https://github.com/Yaddy23/ncb_inv
+    branch: main
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishPath: dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_URL
+        value: https://backend-ncb-inventory.onrender.com/api
+    pullRequestPreviewsEnabled: false
+    renderSubdomainPolicy: enabled
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+# Databases
+databases:
+  # PostgreSQL for relational data (optional - if migrating from MongoDB)
+  # Currently using MongoDB Atlas, so this is commented out
+  # - type: postgres
+  #   name: ncb-inventory-db
+  #   plan: free
+  #   region: oregon
+  #   databaseName: ncb_inventory
+  #   user: ncb_user
+  #   ipAllowList:
+  #     - cidrBlock: 0.0.0.0/0
+  #       description: everywhere
+
+# Environment Variable Groups (for shared config across services)
+# envVarGroups:
+#   - name: auth-config
+#     envVars:
+#       - key: JWT_SECRET
+#         sync: false
+#       - key: COOKIE_DOMAIN
+#         value: .onrender.com
+#       - key: COOKIE_SECURE
+#         value: "true"
+#       - key: COOKIE_SAME_SITE
+#         value: "none"
