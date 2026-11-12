@@ -1,0 +1,10 @@
+# ZAP Custom Rules
+# Format: Rule ID	Threshold	Description
+# See: https://github.com/zaproxy/zaproxy/wiki/Alerts
+
+# Skip certain alerts that are expected in our app
+10021	IGNORE	X-Frame-Options Header Not Set (we use CSP frame-ancestors)
+10020	IGNORE	X-Content-Type-Options Header Missing
+10038	IGNORE	Content Security Policy (CSP) Header Not Set (set via meta tag in SPA)
+10027	IGNORE	Information Disclosure - Server Version
+10028	IGNORE	Information Disclosure - X-Powered-By Header

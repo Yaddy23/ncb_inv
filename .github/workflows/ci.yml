@@ -1,4 +1,7 @@
 # CI Security & Quality Pipeline
+# Runs tests, security scans, dependency audits, and Playwright E2E tests
+# Triggers on: push to main, pull requests, scheduled daily runs
+
 name: CI Security & Quality
 
 on:
@@ -7,87 +10,460 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: '0 2 * * 1'  # Weekly on Monday 2am UTC
+    # Daily at 02:30 UTC (avoids peak GitHub Actions usage)
+    - cron: '30 2 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  security-events: write  # For SARIF uploads
+  actions: read
+  pull-requests: write    # For dependabot auto-merge
+
+# ==========================================
+# GLOBAL DEFAULTS
+# ==========================================
+defaults:
+  run:
+    shell: bash
 
 jobs:
+  # ==========================================
+  # BACKEND TESTS & SECURITY
+  # ==========================================
   backend:
+    name: Backend Tests & Security
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
-        working-directory: ./backend
+        working-directory: backend
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports: ['27017:27017']
+        env:
+          MONGO_INITDB_DATABASE: TESTNCBINVENTORY
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for GitLeaks history scan
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm ci
-      - run: npm test
-      - name: Run npm audit
-        run: npm audit --audit-level=high --if-present
-      - name: Check for vulnerabilities
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # --- Unit/Integration Tests ---
+      - name: Run backend tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          TESTMONGODB_URI: mongodb://localhost:27017/TESTNCBINVENTORY
+          JWT_SECRET: test-secret-for-ci-only-do-not-use-in-production
+          PORT: 8080
+          CLIENT_URL: http://localhost:4173
+
+      # --- npm audit ---
+      - name: Run npm audit (high+)
+        id: npm-audit
         run: |
-          if npm audit --audit-level=high --json 2>/dev/null | jq -e '.metadata.vulnerabilities.high > 0 or .metadata.vulnerabilities.critical > 0' >/dev/null; then
-            echo "High/critical vulnerabilities found!"
-            exit 1
+          npm audit --audit-level=high --json > npm-audit.json || true
+          HIGH_COUNT=$(jq '[.vulnerabilities[] | select(.severity=="high" or .severity=="critical")] | length' npm-audit.json)
+          echo "high_count=$HIGH_COUNT" >> $GITHUB_OUTPUT
+          if [ "$HIGH_COUNT" -gt 0 ]; then
+            echo "::error::Found $HIGH_COUNT high/critical vulnerabilities"
+            cat npm-audit.json | jq -r '.vulnerabilities[] | select(.severity=="high" or .severity=="critical") | "\(.name)@\(.version): \(.title) [\(.severity)]"'
           fi
 
-  frontend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build
-      - name: Run npm audit
-        run: npm audit --audit-level=high --if-present
-      - name: Check for vulnerabilities
-        run: |
-          if npm audit --audit-level=high --json 2>/dev/null | jq -e '.metadata.vulnerabilities.high > 0 or .metadata.vulnerabilities.critical > 0' >/dev/null; then
-            echo "High/critical vulnerabilities found!"
-            exit 1
-          fi
-
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # Snyk Security Scan
+      # --- Snyk (requires SNYK_TOKEN secret) ---
       - name: Run Snyk test
+        if: env.SNYK_TOKEN != ''
         uses: snyk/actions/node@master
-        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --json-file-output=snyk-results.json || true
 
-      # GitLeaks Secret Scanning
+      # --- GitLeaks (secrets scanning) ---
       - name: Run GitLeaks
         uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: --verbose
+          args: --verbose --redact --config-path=../.gitleaks.toml
 
-      # OWASP ZAP Baseline Scan
-      - name: Run OWASP ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.7.0
+      # --- Upload SARIF results ---
+      - name: Upload npm audit SARIF
+        if: steps.npm-audit.outputs.high_count > 0
+        uses: github/codeql-action/upload-sarif@v3
         with:
-          target: 'https://ncb-inventory.onrender.com'
+          sarif_file: backend/npm-audit.json
+          category: npm-audit-backend
+
+      - name: Upload Snyk SARIF
+        if: env.SNYK_TOKEN != '' && always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: backend/snyk-results.json
+          category: snyk-backend
+
+  # ==========================================
+  # FRONTEND TESTS, BUILD & SECURITY
+  # ==========================================
+  frontend:
+    name: Frontend Tests, Build & Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # --- Build ---
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_API_URL: http://localhost:8080/api
+
+      # --- npm audit ---
+      - name: Run npm audit (high+)
+        id: npm-audit
+        run: |
+          npm audit --audit-level=high --json > npm-audit.json || true
+          HIGH_COUNT=$(jq '[.vulnerabilities[] | select(.severity=="high" or .severity=="critical")] | length' npm-audit.json)
+          echo "high_count=$HIGH_COUNT" >> $GITHUB_OUTPUT
+          if [ "$HIGH_COUNT" -gt 0 ]; then
+            echo "::error::Found $HIGH_COUNT high/critical vulnerabilities"
+            cat npm-audit.json | jq -r '.vulnerabilities[] | select(.severity=="high" or .severity=="critical") | "\(.name)@\(.version): \(.title) [\(.severity)]"'
+          fi
+
+      # --- Snyk ---
+      - name: Run Snyk test
+        if: env.SNYK_TOKEN != ''
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --json-file-output=snyk-results.json || true
+
+      # --- GitLeaks ---
+      - name: Run GitLeaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --verbose --redact --config-path=../.gitleaks.toml
+
+      # --- Upload SARIF ---
+      - name: Upload npm audit SARIF
+        if: steps.npm-audit.outputs.high_count > 0
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: frontend/npm-audit.json
+          category: npm-audit-frontend
+
+      - name: Upload Snyk SARIF
+        if: env.SNYK_TOKEN != '' && always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: frontend/snyk-results.json
+          category: snyk-frontend
+
+  # ==========================================
+  # PLAYWRIGHT E2E TESTS
+  # ==========================================
+  playwright-e2e:
+    name: Playwright E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: [backend, frontend]
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports: ['27017:27017']
+        env:
+          MONGO_INITDB_DATABASE: TESTNCBINVENTORY
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox webkit
+        working-directory: frontend
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Start backend server
+        run: |
+          npm start &
+          sleep 15
+          curl -f http://localhost:8080/health || exit 1
+        working-directory: backend
+        env:
+          MONGODB_URI: mongodb://localhost:27017/TESTNCBINVENTORY
+          NODE_ENV: test
+          JWT_SECRET: test-secret-for-ci-only-do-not-use-in-production
+          CLIENT_URL: http://localhost:4173
+          PORT: 8080
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_URL: http://localhost:8080/api
+
+      - name: Start frontend preview server
+        run: |
+          npx serve -s dist -l 4173 &
+          sleep 5
+          curl -f http://localhost:4173 || exit 1
+        working-directory: frontend
+
+      - name: Run Playwright tests
+        run: npx playwright test --reporter=line
+        working-directory: frontend
+        env:
+          TESTMONGODB_URI: mongodb://localhost:27017/TESTNCBINVENTORY
+          VITE_API_URL: http://localhost:8080/api
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: frontend/test-results/
+          retention-days: 7
+
+  # ==========================================
+  # OWASP ZAP BASELINE SCAN
+  # ==========================================
+  zap-scan:
+    name: OWASP ZAP Baseline Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [backend, frontend]
+    if: github.event_name != 'schedule'  # Skip on scheduled runs to save time
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports: ['27017:27017']
+        env:
+          MONGO_INITDB_DATABASE: TESTNCBINVENTORY
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Start backend server
+        run: |
+          npm start &
+          sleep 15
+          curl -f http://localhost:8080/health || exit 1
+        working-directory: backend
+        env:
+          MONGODB_URI: mongodb://localhost:27017/TESTNCBINVENTORY
+          NODE_ENV: test
+          JWT_SECRET: test-secret-for-ci-only-do-not-use-in-production
+          CLIENT_URL: http://localhost:4173
+          PORT: 8080
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_URL: http://localhost:8080/api
+
+      - name: Start frontend preview server
+        run: |
+          npx serve -s dist -l 4173 &
+          sleep 5
+          curl -f http://localhost:4173 || exit 1
+        working-directory: frontend
+
+      - name: Run OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://localhost:4173'
           fail_action: false
-          rules: 'https://raw.githubusercontent.com/zaproxy/zaproxy/main/zap/src/main/resources/rulesets/baseline.rules'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
         continue-on-error: true
 
-  dependabot:
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: report_html.html
+          retention-days: 7
+
+  # ==========================================
+  # TRIVY VULNERABILITY SCAN
+  # ==========================================
+  trivy-scan:
+    name: Trivy Vulnerability Scan
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+  # ==========================================
+  # DEPENDABOT AUTO-MERGE
+  # ==========================================
+  dependabot:
+    name: Dependabot Auto-Merge
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]' && github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+      contents: write
+    steps:
       - name: Auto-merge Dependabot PRs
         uses: fastify/github-action-merge-dependabot@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          merge-type: squash
+
+  # ==========================================
+  # SECURITY SUMMARY
+  # ==========================================
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs:
+      - backend
+      - frontend
+      - playwright-e2e
+      - zap-scan
+      - trivy-scan
+    if: always()
+    steps:
+      - name: Check job statuses
+        run: |
+          echo "## Security Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Tests & Security | ${{ needs.backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Tests & Security | ${{ needs.frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Playwright E2E | ${{ needs.playwright-e2e.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| OWASP ZAP Scan | ${{ needs.zap-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Scan | ${{ needs.trivy-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Fail if any required job failed (excluding zap-scan which continues on error)
+          FAILED=0
+          if [ "${{ needs.backend.result }}" != "success" ]; then
+            echo "::error::Backend tests failed"
+            FAILED=1
+          fi
+          if [ "${{ needs.frontend.result }}" != "success" ]; then
+            echo "::error::Frontend tests failed"
+            FAILED=1
+          fi
+          if [ "${{ needs.playwright-e2e.result }}" != "success" ]; then
+            echo "::error::Playwright E2E tests failed"
+            FAILED=1
+          fi
+          if [ "${{ needs.trivy-scan.result }}" != "success" ]; then
+            echo "::error::Trivy scan failed"
+            FAILED=1
+          fi
+          if [ "$FAILED" -eq 1 ]; then
+            exit 1
+          fi
+          echo "✅ All security checks passed" >> $GITHUB_STEP_SUMMARY

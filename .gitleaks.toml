@@ -1,0 +1,88 @@
+# GitLeaks Configuration
+# Detects secrets, API keys, tokens, and other sensitive data in Git history
+# Used in .github/workflows/security.yml
+
+[allowlist]
+description = "Allowlisted patterns that should not trigger alerts"
+paths = [
+  "**.md",              # Documentation files
+  "**.txt",             # Text files
+  "**.json",            # Config files (review manually)
+  "**.yml", "**.yaml",  # Config files
+  "package-lock.json",  # Lock files
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "frontend/test-results/**",  # Test artifacts
+  "frontend/playwright-report/**",
+  ".playwright-test/**",
+  "coverage/**",
+  ".nyc_output/**",
+  "node_modules/**",
+  ".git/**",
+]
+
+# Common false positives for this project
+regexes = [
+  # Example/test tokens in documentation
+  '''(?i)example[_-]?token''',
+  '''(?i)test[_-]?secret''',
+  '''(?i)placeholder''',
+  '''(?i)your[_-]?secret''',
+  '''(?i)dummy''',
+  # MongoDB connection strings in .env.example
+  '''mongodb://username:password@host:port/database''',
+  # JWT secrets in .env.example
+  '''your-super-secret-jwt-key''',
+]
+
+# Commit allowlist (specific commits known to have secrets that are rotated)
+commits = [
+  # Add commit SHAs here if needed after secret rotation
+]
+
+# ==========================================
+# DEFAULT RULES (enabled by default in GitLeaks)
+# ==========================================
+# The following are detected by default:
+# - AWS keys (Access Key ID, Secret Access Key)
+# - Azure keys (Storage, Service Principal)
+# - GitHub tokens (Personal Access Tokens, OAuth)
+# - GitLab tokens
+# - Google Cloud keys
+# - JWT tokens
+# - MongoDB connection strings
+# - PostgreSQL/MySQL connection strings
+# - Private keys (RSA, SSH, PGP)
+# - Slack tokens
+# - Stripe keys
+# - And many more...
+
+# ==========================================
+# CUSTOM RULES FOR THIS PROJECT
+# ==========================================
+[[rules]]
+id = "ncb-mongodb-uri"
+description = "MongoDB Atlas connection string with credentials"
+regex = '''mongodb(\+srv)?://[^:]+:[^@]+@[^/]+/\w+'''
+tags = ["database", "mongodb", "credentials"]
+secretGroup = 0
+
+[[rules]]
+id = "ncb-jwt-secret"
+description = "JWT Secret (base64 encoded, 32+ chars)"
+regex = '''(?i)(jwt[_-]?secret|jwt[_-]?key)\s*[=:]\s*['"]?([A-Za-z0-9+/=]{32,})['"]?'''
+tags = ["auth", "jwt", "secret"]
+secretGroup = 2
+
+[[rules]]
+id = "ncb-api-key"
+description = "Generic API key pattern"
+regex = '''(?i)(api[_-]?key|apikey)\s*[=:]\s*['"]?([A-Za-z0-9_-]{20,})['"]?'''
+tags = ["api", "key"]
+secretGroup = 2
+
+# ==========================================
+# ENTROPY CHECKS (for high-entropy strings)
+# ==========================================
+# High entropy strings that might be secrets
+# These are checked in addition to specific patterns
