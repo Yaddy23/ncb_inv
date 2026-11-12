@@ -41,7 +41,7 @@ services:
         value: "100"
 
   # Frontend - Static Site (React/Vite)
-  - type: static
+  - type: static_site
     name: ncb-inventory
     plan: free
     region: oregon
