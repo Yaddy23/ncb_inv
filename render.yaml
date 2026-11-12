@@ -41,15 +41,16 @@ services:
         value: "100"
 
   # Frontend - Static Site (React/Vite)
-  - type: static_site
+  - type: web
     name: ncb-inventory
+    runtime: static
     plan: free
     region: oregon
     repo: https://github.com/Yaddy23/ncb_inv
     branch: main
     rootDir: frontend
     buildCommand: npm install && npm run build
-    publishPath: dist
+    staticPublishPath: dist
     autoDeploy: true
     envVars:
       - key: VITE_API_URL
